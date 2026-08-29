@@ -5,7 +5,7 @@ __pycache__/
 
 # Virtual Environment
 venv/
-.eee
+.venv/
 
 # Django
 db.sqlite3
@@ -19,9 +19,14 @@ staticfiles/
 # Logs
 *.log
 
-# Environment
-.eee
+# Environment - the real file this project actually loads is `.env`
+# (see myproject/settings.py's read_env(BASE_DIR / ".env") call);
+# ".eee" only ever appears in code comments as an in-joke name for it,
+# never as a real path, so it ignored nothing and .env (real DB
+# password + LLM API keys) ended up committed. Never re-add a filename
+# here without checking it against settings.py's actual read_env() call.
+.env
 
 # OS
 .DS_Store
-Thumbs.db.venv/
+Thumbs.db

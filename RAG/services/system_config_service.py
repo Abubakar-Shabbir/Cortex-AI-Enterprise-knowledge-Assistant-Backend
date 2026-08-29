@@ -196,7 +196,7 @@ def get_llm_provider_options(config):
     return options
 
 
-def _validate(values: dict) -> list:
+def _validate(values: dict, config) -> list:
     """
     Cross-field/range checks that `.save()`'s Postgres CHECK constraints
     don't (and can't) express - e.g. a negative top_k hits the DB
@@ -207,7 +207,10 @@ def _validate(values: dict) -> list:
     manage_chunking-only user changing just chunk fields) still gets a
     complete, correct validation pass rather than only checking the
     fields that happen to be present in this particular submission.
-    Returns a list of human-readable error strings - empty means valid.
+    `config` is the current (pre-edit) DB row, used only to keep an
+    already-saved custom model value valid (see the model allow-list
+    check below). Returns a list of human-readable error strings -
+    empty means valid.
     """
 
     from .llm_client import PROVIDER_REGISTRY
@@ -240,6 +243,26 @@ def _validate(values: dict) -> list:
 
     if values["llm_provider"] not in PROVIDER_REGISTRY:
         errors.append(f"Unknown LLM provider '{values['llm_provider']}'.")
+
+    # Only a model curated in llm_client.PROVIDER_REGISTRY's free_models
+    # list (or the value already saved, e.g. a custom slug set once via
+    # .eee) may be selected - closes the gap where admin_settings_view
+    # accepted any string for *_model with no server-side check, so a
+    # raw API call bypassing the Settings page's <select> dropdown
+    # (AdminSettings.jsx only ever POSTs a value from this same curated
+    # list) could silently point the app at a retired/invalid/paid
+    # model and break every Ask AI / AI Tasks call.
+    field_to_provider = {"openrouter_model": "openrouter", "groq_model": "groq", "gemini_model": "gemini"}
+
+    for field_name, provider_key in field_to_provider.items():
+        meta = PROVIDER_REGISTRY[provider_key]
+        allowed = set(meta["free_models"]) | {getattr(config, field_name)}
+
+        if values[field_name] not in allowed:
+            errors.append(
+                f"'{values[field_name]}' is not an allowed {meta['label']} model. "
+                f"Choose one of: {', '.join(meta['free_models'])}."
+            )
 
     return errors
 
@@ -275,7 +298,7 @@ def save_config(data, user):
         if field_name in data and user_has_permission(user, permission):
             proposed[field_name] = data[field_name]
 
-    errors = _validate(proposed)
+    errors = _validate(proposed, config)
 
     if errors:
         raise SettingsValidationError(errors)

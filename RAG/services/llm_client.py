@@ -450,10 +450,20 @@ PROVIDER_REGISTRY = {
         "client_class": OpenRouterClient,
         "api_key_setting": "OPENROUTER_API_KEY",
         "model_setting": "OPENROUTER_MODEL",
+        # Live-verified against https://openrouter.ai/api/v1/chat/completions
+        # on 2026-08-30 (real request, real key, HTTP 200 for every slug
+        # below). "openai/gpt-oss-20b:free" and "nvidia/nemotron-nano-9b-v2:free"
+        # were here before and are now both 404 "unavailable for free" -
+        # OpenRouter had quietly retired them, and because nothing kept
+        # this curated list (or the SystemConfiguration DB row it seeds/
+        # bounds) in sync with that, the app kept pointing at a dead slug
+        # despite settings.py's own OPENROUTER_MODEL default already
+        # having been updated. Re-verify against the same endpoint before
+        # replacing an entry here - OpenRouter's free tier churns.
         "free_models": [
-            "openai/gpt-oss-20b:free",
-            "google/gemma-4-26b-a4b-it:free",
-            "nvidia/nemotron-nano-9b-v2:free",
+            "nvidia/nemotron-3-super-120b-a12b:free",
+            "minimax/minimax-m2.7:free",
+            "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
         ],
     },
     "groq": {
