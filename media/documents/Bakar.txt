@@ -1,0 +1,4 @@
+**Machine Learning Intern / Engineer – Job Description**
+
+We are looking for a motivated Machine Learning professional to design, develop, and deploy AI/ML solutions. The role involves data preprocessing, model development, evaluation, and optimization using Python and popular ML frameworks. Candidates should have knowledge of supervised and unsupervised learning, deep learning fundamentals, data analysis, and model deployment. Experience with libraries such as Scikit-learn, TensorFlow, or PyTorch, along with strong problem-solving and analytical skills, is preferred.
+
