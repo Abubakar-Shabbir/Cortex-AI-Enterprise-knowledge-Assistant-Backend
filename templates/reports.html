@@ -12,7 +12,7 @@
   <div class="flex min-w-[280px] flex-1 flex-col rounded-xl border border-line bg-card p-5 shadow-soft dark:border-line-dark dark:bg-card-dark">
     <div class="flex items-start justify-between">
       <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-        <i data-lucide="file-text" class="h-5 w-5"></i>
+        <i class="ph ph-file-text text-[20px]"></i>
       </div>
       <div class="text-right">
         <div class="text-xl font-bold tracking-tight text-ink dark:text-ink-dark">{{ document_count }}</div>
@@ -36,7 +36,7 @@
     <div class="mt-auto flex items-center justify-between pt-4">
       {% include "partials/_trend_badge.html" with trend=kpi_trends.documents %}
       <a href="{% url 'export_documents_report' %}" class="ml-auto inline-flex items-center gap-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-        <i data-lucide="download" class="h-4 w-4"></i> Export CSV
+        <i class="ph ph-download-simple text-[16px]"></i> Export CSV
       </a>
     </div>
   </div>
@@ -44,7 +44,7 @@
   <div class="flex min-w-[280px] flex-1 flex-col rounded-xl border border-line bg-card p-5 shadow-soft dark:border-line-dark dark:bg-card-dark">
     <div class="flex items-start justify-between">
       <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-        <i data-lucide="message-square" class="h-5 w-5"></i>
+        <i class="ph ph-chat-circle text-[20px]"></i>
       </div>
       <div class="text-right">
         <div class="text-xl font-bold tracking-tight text-ink dark:text-ink-dark">{{ question_count }}</div>
@@ -57,7 +57,7 @@
     <div class="mt-auto flex items-center justify-between pt-4">
       {% include "partials/_trend_badge.html" with trend=kpi_trends.queries label="vs yesterday" %}
       <a href="{% url 'export_usage_report' %}" class="ml-auto inline-flex items-center gap-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-        <i data-lucide="download" class="h-4 w-4"></i> Export CSV
+        <i class="ph ph-download-simple text-[16px]"></i> Export CSV
       </a>
     </div>
   </div>
@@ -66,7 +66,7 @@
     <div class="flex min-w-[280px] flex-1 flex-col rounded-xl border border-line bg-card p-5 shadow-soft dark:border-line-dark dark:bg-card-dark">
       <div class="flex items-start justify-between">
         <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-          <i data-lucide="sparkles" class="h-5 w-5"></i>
+          <i class="ph ph-sparkle text-[20px]"></i>
         </div>
         <div class="text-right">
           <div class="text-xl font-bold tracking-tight text-ink dark:text-ink-dark">{{ ai_task_run_count }}</div>
@@ -79,7 +79,7 @@
       <div class="mt-auto flex items-center justify-between pt-4">
         {% include "partials/_trend_badge.html" with trend=kpi_trends.ai_tasks %}
         <a href="{% url 'export_ai_task_runs_report' %}" class="ml-auto inline-flex items-center gap-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-          <i data-lucide="download" class="h-4 w-4"></i> Export CSV
+          <i class="ph ph-download-simple text-[16px]"></i> Export CSV
         </a>
       </div>
     </div>
@@ -89,7 +89,7 @@
     <div class="flex min-w-[280px] flex-1 flex-col rounded-xl border border-line bg-card p-5 shadow-soft dark:border-line-dark dark:bg-card-dark">
       <div class="flex items-start justify-between">
         <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-          <i data-lucide="compass" class="h-5 w-5"></i>
+          <i class="ph ph-compass text-[20px]"></i>
         </div>
         <div class="text-right">
           <div class="text-xl font-bold tracking-tight text-ink dark:text-ink-dark">{{ topic_count }}</div>
@@ -101,7 +101,7 @@
 
       <div class="mt-auto flex items-center justify-end pt-4">
         <a href="{% url 'export_knowledge_topics_report' %}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-          <i data-lucide="download" class="h-4 w-4"></i> Export CSV
+          <i class="ph ph-download-simple text-[16px]"></i> Export CSV
         </a>
       </div>
     </div>
@@ -116,7 +116,7 @@
       <p class="text-xs text-muted dark:text-muted-dark">{{ comparison.current_range }} vs. {{ comparison.previous_range }} (previous {{ comparison.days }} days)</p>
     </div>
     <a href="{% url 'export_comparison_report' %}" class="inline-flex items-center gap-2 rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-      <i data-lucide="download" class="h-4 w-4"></i> Export CSV
+      <i class="ph ph-download-simple text-[16px]"></i> Export CSV
     </a>
   </div>
 
@@ -151,11 +151,11 @@
                 {% elif row.direction == 'down' %} text-danger dark:text-danger-dark
                 {% else %} text-muted dark:text-muted-dark {% endif %}">
                 {% if row.direction == 'up' %}
-                  <i data-lucide="trending-up" class="h-3.5 w-3.5"></i>
+                  <i class="ph ph-trend-up text-[14px]"></i>
                 {% elif row.direction == 'down' %}
-                  <i data-lucide="trending-down" class="h-3.5 w-3.5"></i>
+                  <i class="ph ph-trend-down text-[14px]"></i>
                 {% else %}
-                  <i data-lucide="minus" class="h-3.5 w-3.5"></i>
+                  <i class="ph ph-minus text-[14px]"></i>
                 {% endif %}
                 {{ row.change_pct }}%
               </span>

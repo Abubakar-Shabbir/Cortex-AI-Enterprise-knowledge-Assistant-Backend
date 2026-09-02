@@ -23,15 +23,15 @@ the widgets its own permissions cover, same degrade-gracefully pattern
 {% endcomment %}
 <div class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] fade-in-up">
   {% if "pages.documents" in user_permissions %}
-    {% include "dashboard/_kpi_card.html" with icon="file-text" icon_bg="bg-primary/10" icon_color="text-primary" label="Total Documents" value=stats.total_documents numeric=True trend=kpi_trends.documents trend_label="vs last 7 days" chart_id="kpi-documents" chart_color="#8B1E2D" chart_data=kpi_trends.documents.sparkline %}
-    {% include "dashboard/_kpi_card.html" with icon="box" icon_bg="bg-warning/10" icon_color="text-warning" label="Total Chunks" value=stats.total_chunks numeric=True trend=kpi_trends.chunks trend_label="vs last 7 days" chart_id="kpi-chunks" chart_color="#C77700" chart_data=kpi_trends.chunks.sparkline %}
-    {% include "dashboard/_kpi_card.html" with icon="database" icon_bg="bg-success/10" icon_color="text-success" label="Storage Used" value=stats.storage_used trend=kpi_trends.storage trend_label="vs last 7 days" chart_id="kpi-storage" chart_color="#1F7A4D" chart_data=kpi_trends.storage.sparkline %}
+    {% include "dashboard/_kpi_card.html" with icon="file-text" icon_bg="bg-primary/10" icon_color="text-primary" label="Total Documents" value=stats.total_documents numeric=True trend=kpi_trends.documents trend_label="vs last 7 days" chart_id="kpi-documents" chart_color="#FF385C" chart_data=kpi_trends.documents.sparkline %}
+    {% include "dashboard/_kpi_card.html" with icon="cube" icon_bg="bg-warning/10" icon_color="text-warning" label="Total Chunks" value=stats.total_chunks numeric=True trend=kpi_trends.chunks trend_label="vs last 7 days" chart_id="kpi-chunks" chart_color="#D97706" chart_data=kpi_trends.chunks.sparkline %}
+    {% include "dashboard/_kpi_card.html" with icon="database" icon_bg="bg-success/10" icon_color="text-success" label="Storage Used" value=stats.storage_used trend=kpi_trends.storage trend_label="vs last 7 days" chart_id="kpi-storage" chart_color="#16A34A" chart_data=kpi_trends.storage.sparkline %}
   {% endif %}
   {% if "pages.ask_ai" in user_permissions %}
-    {% include "dashboard/_kpi_card.html" with icon="message-square-text" icon_bg="bg-info/10" icon_color="text-info" label="Queries Today" value=stats.today_queries numeric=True trend=kpi_trends.queries trend_label="vs yesterday" chart_id="kpi-queries" chart_color="#2A78D6" chart_data=kpi_trends.queries.sparkline %}
+    {% include "dashboard/_kpi_card.html" with icon="chat-text" icon_bg="bg-info/10" icon_color="text-info" label="Queries Today" value=stats.today_queries numeric=True trend=kpi_trends.queries trend_label="vs yesterday" chart_id="kpi-queries" chart_color="#0EA5E9" chart_data=kpi_trends.queries.sparkline %}
   {% endif %}
   {% if "pages.ai_tasks" in user_permissions %}
-    {% include "dashboard/_kpi_card.html" with icon="sparkles" icon_bg="bg-accent/10" icon_color="text-accent" label="AI Task Runs" value=stats.ai_task_runs numeric=True trend=kpi_trends.ai_tasks trend_label="vs last 7 days" chart_id="kpi-ai-tasks" chart_color="#4A3AA7" chart_data=kpi_trends.ai_tasks.sparkline %}
+    {% include "dashboard/_kpi_card.html" with icon="sparkle" icon_bg="bg-accent/10" icon_color="text-accent" label="AI Task Runs" value=stats.ai_task_runs numeric=True trend=kpi_trends.ai_tasks trend_label="vs last 7 days" chart_id="kpi-ai-tasks" chart_color="#460479" chart_data=kpi_trends.ai_tasks.sparkline %}
   {% endif %}
 </div>
 
@@ -99,10 +99,10 @@ _system_status.html / _knowledge_snapshot.html.
   };
 
   Chart.defaults.font.family = 'Inter, ui-sans-serif, system-ui, sans-serif';
-  Chart.defaults.color = '#8a7d7d';
+  Chart.defaults.color = '#6A6A6A';
 
-  const gridColor = 'rgba(109, 102, 101, 0.12)';
-  const primary = '#8B1E2D';
+  const gridColor = 'rgba(106, 106, 106, 0.12)';
+  const primary = '#FF385C';
 
   // ---- Documents Over Time (main chart): a combo chart, not a plain
   // line - daily new-upload bars (their own right-hand axis, headroom
@@ -118,9 +118,14 @@ _system_status.html / _knowledge_snapshot.html.
 
   if (dotCanvas && dotLabels) {
     const ctx = dotCanvas.getContext('2d');
-    const fill = ctx.createLinearGradient(0, 0, 0, 260);
-    fill.addColorStop(0, 'rgba(139, 30, 45, 0.22)');
-    fill.addColorStop(1, 'rgba(139, 30, 45, 0)');
+    const barFill = ctx.createLinearGradient(0, 0, 0, 260);
+    barFill.addColorStop(0, 'rgba(255, 56, 92, 0.38)');
+    barFill.addColorStop(1, 'rgba(255, 56, 92, 0.12)');
+
+    const lineFill = ctx.createLinearGradient(0, 0, 0, 260);
+    lineFill.addColorStop(0, 'rgba(255, 56, 92, 0.32)');
+    lineFill.addColorStop(0.6, 'rgba(255, 56, 92, 0.06)');
+    lineFill.addColorStop(1, 'rgba(255, 56, 92, 0)');
 
     const dailyMax = Math.max(1, ...(dotDaily || [0]));
 
@@ -134,10 +139,31 @@ _system_status.html / _knowledge_snapshot.html.
             label: 'New that day',
             data: dotDaily,
             yAxisID: 'yDaily',
-            backgroundColor: 'rgba(139, 30, 45, 0.25)',
-            hoverBackgroundColor: 'rgba(139, 30, 45, 0.4)',
-            borderRadius: 3,
-            maxBarThickness: 22,
+            backgroundColor: barFill,
+            hoverBackgroundColor: 'rgba(255, 56, 92, 0.55)',
+            borderRadius: 6,
+            maxBarThickness: 26,
+            order: 3,
+          },
+          {
+            // Soft glow layer behind the main line - a wide, translucent
+            // duplicate stroke with no fill/points, purely so the real
+            // line reads as "lit up" rather than a bare thin stroke.
+            type: 'line',
+            label: 'Total documents',
+            data: dotSeries,
+            yAxisID: 'yTotal',
+            borderColor: 'rgba(255, 56, 92, 0.35)',
+            backgroundColor: 'transparent',
+            fill: false,
+            tension: 0.4,
+            cubicInterpolationMode: 'monotone',
+            pointRadius: 0,
+            pointHoverRadius: 0,
+            borderWidth: 9,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
+            order: 2,
           },
           {
             type: 'line',
@@ -145,24 +171,39 @@ _system_status.html / _knowledge_snapshot.html.
             data: dotSeries,
             yAxisID: 'yTotal',
             borderColor: primary,
-            backgroundColor: fill,
+            backgroundColor: lineFill,
             fill: true,
-            tension: 0.35,
-            pointRadius: 0,
-            pointHoverRadius: 4,
+            tension: 0.4,
+            cubicInterpolationMode: 'monotone',
+            pointRadius: 3,
+            pointHitRadius: 14,
+            pointHoverRadius: 7,
+            pointBackgroundColor: primary,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
             pointHoverBackgroundColor: primary,
             pointHoverBorderColor: '#fff',
-            pointHoverBorderWidth: 2,
-            borderWidth: 2.5,
+            pointHoverBorderWidth: 3,
+            borderWidth: 3.5,
+            borderCapStyle: 'round',
+            borderJoinStyle: 'round',
+            order: 1,
           },
         ],
       },
       options: {
         responsive: true, maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
+        animation: { duration: 650, easing: 'easeOutQuart' },
         plugins: {
           legend: { display: false },
           tooltip: {
+            padding: 10,
+            cornerRadius: 10,
+            titleFont: { weight: '600' },
+            boxPadding: 4,
+            usePointStyle: true,
+            filter: (item) => item.dataset.order !== 2,
             callbacks: {
               label(item) {
                 const suffix = item.dataset.yAxisID === 'yDaily' ? ' new' : ' total';
@@ -175,13 +216,15 @@ _system_status.html / _knowledge_snapshot.html.
           x: { grid: { display: false } },
           yTotal: {
             position: 'left',
-            grid: { color: gridColor },
+            grid: { color: gridColor, drawTicks: false, borderDash: [3, 4] },
+            border: { display: false },
             beginAtZero: true,
-            ticks: { precision: 0 },
+            ticks: { precision: 0, padding: 8 },
           },
           yDaily: {
             position: 'right',
             grid: { drawOnChartArea: false },
+            border: { display: false },
             beginAtZero: true,
             suggestedMax: dailyMax * 3,
             ticks: { precision: 0, maxTicksLimit: 3 },
@@ -276,11 +319,11 @@ _system_status.html / _knowledge_snapshot.html.
   // and a lightweight tooltip so a specific day's value is one hover
   // away instead of having to open the full chart to check it.
   const sparklines = [
-    { id: 'kpi-documents', color: '#8B1E2D' },
-    { id: 'kpi-chunks', color: '#C77700' },
-    { id: 'kpi-storage', color: '#1F7A4D' },
-    { id: 'kpi-queries', color: '#2A78D6' },
-    { id: 'kpi-ai-tasks', color: '#4A3AA7' },
+    { id: 'kpi-documents', color: '#FF385C' },
+    { id: 'kpi-chunks', color: '#D97706' },
+    { id: 'kpi-storage', color: '#16A34A' },
+    { id: 'kpi-queries', color: '#0EA5E9' },
+    { id: 'kpi-ai-tasks', color: '#460479' },
   ];
 
   sparklines.forEach(({ id, color }) => {

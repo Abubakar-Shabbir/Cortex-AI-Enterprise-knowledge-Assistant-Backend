@@ -4,18 +4,18 @@ active: mine | shared | org | collections | favorites
 {% endcomment %}
 <div class="mb-6 flex gap-1 overflow-x-auto border-b border-line dark:border-line-dark">
   <a href="{% url 'documents' %}" class="shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors {% if active == 'mine' %}border-primary text-primary dark:border-primary-soft dark:text-primary-soft{% else %}border-transparent text-muted hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark{% endif %}">
-    <span class="flex items-center gap-1.5"><i data-lucide="file-text" class="h-3.5 w-3.5"></i> My Documents</span>
+    <span class="flex items-center gap-1.5"><i class="ph ph-file-text text-[14px]"></i> My Documents</span>
   </a>
   <a href="{% url 'shared_with_me' %}" class="shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors {% if active == 'shared' %}border-primary text-primary dark:border-primary-soft dark:text-primary-soft{% else %}border-transparent text-muted hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark{% endif %}">
-    <span class="flex items-center gap-1.5"><i data-lucide="share-2" class="h-3.5 w-3.5"></i> Shared With Me</span>
+    <span class="flex items-center gap-1.5"><i class="ph ph-share-network text-[14px]"></i> Shared With Me</span>
   </a>
   <a href="{% url 'org_library' %}" class="shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors {% if active == 'org' %}border-primary text-primary dark:border-primary-soft dark:text-primary-soft{% else %}border-transparent text-muted hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark{% endif %}">
-    <span class="flex items-center gap-1.5"><i data-lucide="library" class="h-3.5 w-3.5"></i> Organization Library</span>
+    <span class="flex items-center gap-1.5"><i class="ph ph-books text-[14px]"></i> Organization Library</span>
   </a>
   <a href="{% url 'collections' %}" class="shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors {% if active == 'collections' %}border-primary text-primary dark:border-primary-soft dark:text-primary-soft{% else %}border-transparent text-muted hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark{% endif %}">
-    <span class="flex items-center gap-1.5"><i data-lucide="folder" class="h-3.5 w-3.5"></i> Collections</span>
+    <span class="flex items-center gap-1.5"><i class="ph ph-folder-notch text-[14px]"></i> Collections</span>
   </a>
   <a href="{% url 'favorites' %}" class="shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors {% if active == 'favorites' %}border-primary text-primary dark:border-primary-soft dark:text-primary-soft{% else %}border-transparent text-muted hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark{% endif %}">
-    <span class="flex items-center gap-1.5"><i data-lucide="star" class="h-3.5 w-3.5"></i> Favorites</span>
+    <span class="flex items-center gap-1.5"><i class="ph ph-star text-[14px]"></i> Favorites</span>
   </a>
 </div>

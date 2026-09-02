@@ -29,14 +29,14 @@ stretches to match instead of leaving a dead page-colored gap under it.
       {% include "dashboard/_mini_stat_card.html" with icon="file-text" icon_bg="bg-primary/10" icon_color="text-primary" label="My Documents" value=stats.total_documents numeric=True %}
     {% endif %}
     {% if "pages.ask_ai" in user_permissions %}
-      {% include "dashboard/_mini_stat_card.html" with icon="message-square" icon_bg="bg-info/10" icon_color="text-info" label="Questions Asked" value=stats.questions_asked numeric=True %}
+      {% include "dashboard/_mini_stat_card.html" with icon="chat-circle" icon_bg="bg-info/10" icon_color="text-info" label="Questions Asked" value=stats.questions_asked numeric=True %}
       {% include "dashboard/_mini_stat_card.html" with icon="timer" icon_bg="bg-warning/10" icon_color="text-warning" label="Avg Response Time" value=stats.avg_response_time %}
     {% endif %}
     {% if "pages.documents" in user_permissions %}
       {% include "dashboard/_mini_stat_card.html" with icon="hard-drive" icon_bg="bg-success/10" icon_color="text-success" label="Storage Used" value=stats.storage_used %}
     {% endif %}
     {% if "pages.ai_tasks" in user_permissions %}
-      {% include "dashboard/_mini_stat_card.html" with icon="sparkles" icon_bg="bg-accent/10" icon_color="text-accent" label="AI Task Runs" value=stats.ai_task_runs numeric=True %}
+      {% include "dashboard/_mini_stat_card.html" with icon="sparkle" icon_bg="bg-accent/10" icon_color="text-accent" label="AI Task Runs" value=stats.ai_task_runs numeric=True %}
     {% endif %}
     {% if "pages.knowledge_base" in user_permissions %}
       {% include "dashboard/_mini_stat_card.html" with icon="compass" icon_bg="bg-success/10" icon_color="text-success" label="Topics" value=knowledge_overview.total_entities numeric=True %}
@@ -74,7 +74,7 @@ stretches to match instead of leaving a dead page-colored gap under it.
           {% for doc in recent_documents %}
             <div class="flex items-center gap-2.5 px-3.5 py-1.5">
               <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <i data-lucide="file-text" class="h-4 w-4"></i>
+                <i class="ph ph-file-text text-[16px]"></i>
               </div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium leading-snug text-ink dark:text-ink-dark">{{ doc.title }}</p>
@@ -84,7 +84,7 @@ stretches to match instead of leaving a dead page-colored gap under it.
           {% empty %}
             <div class="flex items-center gap-2.5 px-3.5 py-3">
               <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-line/50 text-muted dark:bg-white/5 dark:text-muted-dark">
-                <i data-lucide="file-text" class="h-4 w-4"></i>
+                <i class="ph ph-file-text text-[16px]"></i>
               </div>
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-muted dark:text-muted-dark">No documents uploaded yet.</p>
@@ -106,7 +106,7 @@ stretches to match instead of leaving a dead page-colored gap under it.
           {% for log in recent_questions %}
             <div class="flex items-center gap-2.5 px-3.5 py-1.5">
               <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <i data-lucide="message-square" class="h-4 w-4"></i>
+                <i class="ph ph-chat-circle text-[16px]"></i>
               </div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium leading-snug text-ink dark:text-ink-dark">{{ log.question }}</p>
@@ -116,7 +116,7 @@ stretches to match instead of leaving a dead page-colored gap under it.
           {% empty %}
             <div class="flex items-center gap-2.5 px-3.5 py-3">
               <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-line/50 text-muted dark:bg-white/5 dark:text-muted-dark">
-                <i data-lucide="message-square" class="h-4 w-4"></i>
+                <i class="ph ph-chat-circle text-[16px]"></i>
               </div>
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-muted dark:text-muted-dark">No questions asked yet.</p>
@@ -144,7 +144,7 @@ stretches to match instead of leaving a dead page-colored gap under it.
           {% for run in recent_ai_task_runs %}
             <a href="{% url 'ai_task_results' run.id %}" class="flex items-center gap-2.5 px-3.5 py-1.5 hover:bg-surface dark:hover:bg-white/5">
               <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <i data-lucide="sparkles" class="h-4 w-4"></i>
+                <i class="ph ph-sparkle text-[16px]"></i>
               </div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium leading-snug text-ink dark:text-ink-dark">{{ run.get_task_type_display }}</p>
@@ -154,7 +154,7 @@ stretches to match instead of leaving a dead page-colored gap under it.
           {% empty %}
             <div class="flex items-center gap-2.5 px-3.5 py-3">
               <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-line/50 text-muted dark:bg-white/5 dark:text-muted-dark">
-                <i data-lucide="sparkles" class="h-4 w-4"></i>
+                <i class="ph ph-sparkle text-[16px]"></i>
               </div>
               <div class="min-w-0 flex-1">
                 <p class="text-sm text-muted dark:text-muted-dark">No AI Tasks run yet.</p>

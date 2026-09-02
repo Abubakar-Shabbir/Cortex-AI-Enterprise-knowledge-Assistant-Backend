@@ -9,7 +9,7 @@ Alpine state needed for a simple expand/collapse.
 {% if errors %}
   <details class="mt-2 text-xs">
     <summary class="cursor-pointer list-none flex items-center gap-1 font-medium text-danger dark:text-danger-dark">
-      <i data-lucide="triangle-alert" class="h-3 w-3"></i> {{ errors|length }} recent issue{{ errors|length|pluralize }}
+      <i class="ph ph-warning text-[12px]"></i> {{ errors|length }} recent issue{{ errors|length|pluralize }}
     </summary>
     <div class="mt-1.5 space-y-1.5 border-l-2 border-danger/20 pl-2 dark:border-danger-dark/20">
       {% for group in errors %}

@@ -14,9 +14,9 @@
   {% if can_view_traces %}
     <div class="mb-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
       {% include "partials/_stat_card.html" with label="Total Requests" icon="activity" value=summary.total numeric=True %}
-      {% include "partials/_stat_card.html" with label="Ask AI" icon="message-square-text" value=summary.ask_ai numeric=True %}
-      {% include "partials/_stat_card.html" with label="AI Tasks" icon="sparkles" value=summary.ai_task numeric=True %}
-      {% include "partials/_stat_card.html" with label="Failed" icon="triangle-alert" value=summary.failed numeric=True %}
+      {% include "partials/_stat_card.html" with label="Ask AI" icon="chat-text" value=summary.ask_ai numeric=True %}
+      {% include "partials/_stat_card.html" with label="AI Tasks" icon="sparkle" value=summary.ai_task numeric=True %}
+      {% include "partials/_stat_card.html" with label="Failed" icon="warning" value=summary.failed numeric=True %}
     </div>
   {% endif %}
 
@@ -79,7 +79,7 @@
           <span class="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning dark:text-warning-dark">{{ active_ai_task_runs|length }}</span>
         </h2>
         <a href="{% url 'admin_system_logs' %}" class="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline dark:text-primary-soft">
-          <i data-lucide="refresh-cw" class="h-3 w-3"></i> Refresh
+          <i class="ph ph-arrows-clockwise text-[12px]"></i> Refresh
         </a>
       </div>
       <div class="divide-y divide-warning/15 dark:divide-warning-dark/15">
@@ -97,15 +97,15 @@
               </div>
               {% if run.stuck_pending %}
                 <p class="mt-1 flex items-center gap-1.5 text-xs text-warning dark:text-warning-dark">
-                  <i data-lucide="alert-triangle" class="h-3 w-3 shrink-0"></i>
+                  <i class="ph ph-warning text-[12px] shrink-0"></i>
                   This run may have been interrupted by a server restart — stop it and start a new one.
                 </p>
               {% endif %}
             </div>
             <button type="button" @click="cancelRun({{ run.id }})" :disabled="cancellingRunId === {{ run.id }}"
               class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-danger/30 bg-danger/5 px-2.5 py-1 text-xs font-medium text-danger transition-colors hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-danger-dark/30 dark:text-danger-dark dark:hover:bg-danger-dark/10">
-              <i data-lucide="loader-2" class="h-3 w-3 animate-spin" x-show="cancellingRunId === {{ run.id }}"></i>
-              <i data-lucide="square" class="h-3 w-3" x-show="cancellingRunId !== {{ run.id }}"></i>
+              <i class="ph ph-circle-notch text-[12px] animate-spin" x-show="cancellingRunId === {{ run.id }}"></i>
+              <i class="ph ph-square text-[12px]" x-show="cancellingRunId !== {{ run.id }}"></i>
               Stop
             </button>
           </div>
@@ -119,7 +119,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Source</label>
-        <select name="source" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="source" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           <option value="ask_ai" {% if filters.source == "ask_ai" %}selected{% endif %}>Ask AI</option>
           <option value="ai_task" {% if filters.source == "ai_task" %}selected{% endif %}>AI Task</option>
@@ -128,7 +128,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Status</label>
-        <select name="status" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="status" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>Completed</option>
           <option value="failed" {% if filters.status == "failed" %}selected{% endif %}>Failed</option>
@@ -139,7 +139,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Provider</label>
-        <select name="provider" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="provider" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           {% for provider in filter_options.providers %}
             <option value="{{ provider }}" {% if filters.provider == provider %}selected{% endif %}>{{ provider }}</option>
@@ -149,7 +149,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Model</label>
-        <select name="model" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="model" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           {% for model in filter_options.models %}
             <option value="{{ model }}" {% if filters.model == model %}selected{% endif %}>{{ model }}</option>
@@ -159,7 +159,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Error type</label>
-        <select name="error_type" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="error_type" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           {% for error_type in filter_options.error_types %}
             <option value="{{ error_type }}" {% if filters.error_type == error_type %}selected{% endif %}>{{ error_type }}</option>
@@ -170,24 +170,24 @@
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">From</label>
         <input type="date" name="date_from" value="{{ filters.date_from }}"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">To</label>
         <input type="date" name="date_to" value="{{ filters.date_to }}"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div class="lg:col-span-2">
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Request ID</label>
         <input type="text" name="trace_id" value="{{ filters.trace_id }}" placeholder="e.g. 2f986667"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div class="flex items-end gap-2 lg:col-span-2">
         <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-          <i data-lucide="filter" class="h-4 w-4"></i> Apply
+          <i class="ph ph-funnel text-[16px]"></i> Apply
         </button>
         <a href="{% url 'admin_system_logs' %}" class="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface dark:border-line-dark dark:text-ink-dark dark:hover:bg-white/5">
           Reset
@@ -244,7 +244,7 @@
                 <td class="px-4 py-2 text-right">
                   <button type="button" @click="openDetail('{{ trace.trace_id }}')"
                     class="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-                    <i data-lucide="eye" class="h-3.5 w-3.5"></i> View
+                    <i class="ph ph-eye text-[14px]"></i> View
                   </button>
                 </td>
               </tr>
@@ -268,7 +268,7 @@
       {% endif %}
 
     {% else %}
-      {% include "partials/_empty_state.html" with icon="terminal" title="No AI requests match these filters" %}
+      {% include "partials/_empty_state.html" with icon="terminal-window" title="No AI requests match these filters" %}
     {% endif %}
 
   </div>
@@ -284,12 +284,12 @@
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Module</label>
         <input type="text" name="eg_logger" value="{{ eg_filters.logger_name }}" placeholder="e.g. RAG.services.health_service"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Level</label>
-        <select name="eg_level" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="eg_level" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           <option value="WARNING" {% if eg_filters.level == "WARNING" %}selected{% endif %}>Warning</option>
           <option value="ERROR" {% if eg_filters.level == "ERROR" %}selected{% endif %}>Error</option>
@@ -300,24 +300,24 @@
       <div class="sm:col-span-2">
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Message contains</label>
         <input type="text" name="eg_q" value="{{ eg_filters.q }}" placeholder="e.g. connection refused"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">From</label>
         <input type="date" name="eg_date_from" value="{{ eg_filters.date_from }}"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">To</label>
         <input type="date" name="eg_date_to" value="{{ eg_filters.date_to }}"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div class="flex items-end gap-2 sm:col-span-2 lg:col-span-6">
         <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-          <i data-lucide="filter" class="h-4 w-4"></i> Apply
+          <i class="ph ph-funnel text-[16px]"></i> Apply
         </button>
         <a href="{% url 'admin_system_logs' %}?tab=errors" class="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface dark:border-line-dark dark:text-ink-dark dark:hover:bg-white/5">
           Reset
@@ -370,7 +370,7 @@
                 <td class="px-4 py-2 text-right">
                   <button type="button" @click="openErrorDetail({{ group.id }})"
                     class="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-                    <i data-lucide="eye" class="h-3.5 w-3.5"></i> View
+                    <i class="ph ph-eye text-[14px]"></i> View
                   </button>
                 </td>
               </tr>
@@ -411,12 +411,12 @@
       {% include "partials/_stat_card.html" with label="Tracked IPs" icon="globe" value=act_summary.tracked_ips numeric=True %}
       {% include "partials/_stat_card.html" with label="Countries" icon="map-pin" value=act_summary.countries numeric=True %}
     {% endif %}
-    {% include "partials/_stat_card.html" with label="Security Alerts" icon="shield-alert" value=act_summary.security_alerts numeric=True %}
+    {% include "partials/_stat_card.html" with label="Security Alerts" icon="shield-warning" value=act_summary.security_alerts numeric=True %}
   </div>
 
   {% if not can_view_activity_location %}
     <div class="mb-3 flex items-center gap-2 rounded-xl border border-line bg-card px-3.5 py-2.5 text-xs text-muted shadow-soft dark:border-line-dark dark:bg-card-dark dark:text-muted-dark">
-      <i data-lucide="lock" class="h-3.5 w-3.5 shrink-0"></i>
+      <i class="ph ph-lock text-[14px] shrink-0"></i>
       IP address and location are hidden - your role doesn't hold the "View IP & location data" permission.
     </div>
   {% endif %}
@@ -427,7 +427,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Event type</label>
-        <select name="act_type" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="act_type" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           {% for t in activity_types %}
             <option value="{{ t }}" {% if act_filters.type == t %}selected{% endif %}>{{ t }}</option>
@@ -438,38 +438,38 @@
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Actor</label>
         <input type="text" name="act_actor" value="{{ act_filters.actor }}" placeholder="username"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Description contains</label>
         <input type="text" name="act_q" value="{{ act_filters.q }}" placeholder="e.g. deleted"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       {% if can_view_activity_location %}
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">IP / Location</label>
         <input type="text" name="act_location" value="{{ act_filters.location }}" placeholder="IP, city, country…"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
       {% endif %}
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">From</label>
         <input type="date" name="act_date_from" value="{{ act_filters.date_from }}"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">To</label>
         <input type="date" name="act_date_to" value="{{ act_filters.date_to }}"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div class="flex items-end gap-2 sm:col-span-2 lg:col-span-6">
         <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-          <i data-lucide="filter" class="h-4 w-4"></i> Apply
+          <i class="ph ph-funnel text-[16px]"></i> Apply
         </button>
         <a href="{% url 'admin_system_logs' %}?tab=activity" class="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface dark:border-line-dark dark:text-ink-dark dark:hover:bg-white/5">
           Reset
@@ -502,7 +502,7 @@
                       {% elif event.category == "danger" %} bg-danger/10 text-danger dark:text-danger-dark
                       {% elif event.category == "warning" %} bg-warning/10 text-warning dark:text-warning-dark
                       {% else %} bg-primary/10 text-primary dark:text-primary-soft {% endif %}">
-                      <i data-lucide="{{ event.icon }}" class="h-3.5 w-3.5"></i>
+                      <i class="ph ph-{{ event.icon }} text-[14px]"></i>
                     </span>
                     {{ event.text }}
                   </span>
@@ -524,7 +524,7 @@
                       <span class="font-mono text-xs text-ink dark:text-ink-dark">{{ event.ip_address }}</span>
                       {% if event.location %}
                         <span class="flex items-center gap-1 text-xs text-muted dark:text-muted-dark">
-                          <i data-lucide="map-pin" class="h-3 w-3 shrink-0"></i> {{ event.location }}
+                          <i class="ph ph-map-pin text-[12px] shrink-0"></i> {{ event.location }}
                         </span>
                       {% else %}
                         <span class="text-xs text-muted dark:text-muted-dark">Location unknown</span>
@@ -557,7 +557,7 @@
       {% endif %}
 
     {% else %}
-      {% include "partials/_empty_state.html" with icon="scroll-text" title="No activity matches these filters" %}
+      {% include "partials/_empty_state.html" with icon="scroll" title="No activity matches these filters" %}
     {% endif %}
 
   </div>
@@ -582,7 +582,7 @@
               <p class="text-xs text-muted dark:text-muted-dark" x-text="detail.data.created_at"></p>
             </div>
             <button type="button" @click="closeDetail()" class="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5">
-              <i data-lucide="x" class="h-4 w-4"></i>
+              <i class="ph ph-x text-[16px]"></i>
             </button>
           </div>
 
@@ -625,7 +625,7 @@
           <div>
             <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted dark:text-muted-dark">Stage Timeline</p>
             <p class="mb-1.5 text-[11px] text-muted dark:text-muted-dark">
-              <i data-lucide="triangle-alert" class="inline h-3 w-3 text-warning"></i> marks the bottleneck stage (<span x-text="detail.data.bottleneck_label || '—'"></span>) that accounted for the most of this request's total time; <i data-lucide="rotate-cw" class="inline h-3 w-3 text-muted dark:text-muted-dark"></i> marks a stage that retried or fell back across providers.
+              <i class="ph ph-warning text-[12px] inline text-warning"></i> marks the bottleneck stage (<span x-text="detail.data.bottleneck_label || '—'"></span>) that accounted for the most of this request's total time; <i class="ph ph-arrow-clockwise text-[12px] inline text-muted dark:text-muted-dark"></i> marks a stage that retried or fell back across providers.
             </p>
             <div class="space-y-1">
               <template x-for="(stage, idx) in detail.data.stages" :key="idx">
@@ -633,13 +633,13 @@
                   :class="stage.tags && stage.tags.includes('bottleneck') ? 'border-warning/30 bg-warning/5 dark:border-warning-dark/30' : 'border-line dark:border-line-dark'">
                   <span class="flex items-center gap-1.5 text-ink dark:text-ink-dark">
                     <template x-if="stage.tags && stage.tags.includes('bottleneck')">
-                      <i data-lucide="triangle-alert" class="h-3.5 w-3.5 shrink-0 text-warning"></i>
+                      <i class="ph ph-warning text-[14px] shrink-0 text-warning"></i>
                     </template>
                     <template x-if="!stage.tags || !stage.tags.includes('bottleneck')">
-                      <i data-lucide="check" class="h-3.5 w-3.5 shrink-0 text-success dark:text-success-dark"></i>
+                      <i class="ph ph-check text-[14px] shrink-0 text-success dark:text-success-dark"></i>
                     </template>
                     <template x-if="stage.tags && stage.tags.includes('retry')">
-                      <i data-lucide="rotate-cw" class="h-3.5 w-3.5 shrink-0 text-muted dark:text-muted-dark" title="retried / fell back"></i>
+                      <i class="ph ph-arrow-clockwise text-[14px] shrink-0 text-muted dark:text-muted-dark" title="retried / fell back"></i>
                     </template>
                     <span x-text="stage.name"></span>
                   </span>
@@ -672,7 +672,7 @@
               <p class="text-xs text-muted dark:text-muted-dark">First seen <span x-text="errorDetail.data.first_seen"></span> · last seen <span x-text="errorDetail.data.last_seen"></span></p>
             </div>
             <button type="button" @click="closeErrorDetail()" class="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5">
-              <i data-lucide="x" class="h-4 w-4"></i>
+              <i class="ph ph-x text-[16px]"></i>
             </button>
           </div>
 
@@ -704,7 +704,7 @@
                   <template x-if="occ.trace_exists">
                     <button type="button" @click="closeErrorDetail(); openDetail(occ.trace_id)"
                       class="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 font-mono text-[11px] text-primary hover:bg-primary/5 dark:border-line-dark">
-                      <i data-lucide="external-link" class="h-3 w-3"></i> <span x-text="occ.trace_id"></span>
+                      <i class="ph ph-arrow-square-out text-[12px]"></i> <span x-text="occ.trace_id"></span>
                     </button>
                   </template>
                   <template x-if="!occ.trace_exists">
@@ -755,7 +755,7 @@
         this.detail = { open: true, loading: true, data: null };
         fetch(`/admin/system-logs/traces/${traceId}/`)
           .then(r => r.json())
-          .then(data => { this.detail = { open: true, loading: false, data }; $nextTick(() => window.lucide && window.lucide.createIcons()); });
+          .then(data => { this.detail = { open: true, loading: false, data }; });
       },
 
       closeDetail() {
@@ -766,7 +766,7 @@
         this.errorDetail = { open: true, loading: true, data: null };
         fetch(`/admin/system-logs/errors/${groupId}/`)
           .then(r => r.json())
-          .then(data => { this.errorDetail = { open: true, loading: false, data }; $nextTick(() => window.lucide && window.lucide.createIcons()); });
+          .then(data => { this.errorDetail = { open: true, loading: false, data }; });
       },
 
       closeErrorDetail() {

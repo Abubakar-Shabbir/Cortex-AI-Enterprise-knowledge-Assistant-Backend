@@ -77,7 +77,7 @@
                       aria-label="User actions"
                       :aria-expanded="menuOpen"
                     >
-                      <i data-lucide="more-horizontal" class="h-4 w-4"></i>
+                      <i class="ph ph-dots-three text-[16px]"></i>
                     </button>
 
                     <div
@@ -90,7 +90,7 @@
                         href="{% url 'admin_user_profile' member.id %}"
                         class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink transition-colors hover:bg-surface dark:text-ink-dark dark:hover:bg-white/5"
                       >
-                        <i data-lucide="id-card" class="h-4 w-4 shrink-0"></i> View Profile
+                        <i class="ph ph-identification-card text-[16px] shrink-0"></i> View Profile
                       </a>
 
                       {% if "users.assign_role" in user_permissions or "users.suspend" in user_permissions or "users.delete" in user_permissions %}
@@ -103,7 +103,7 @@
                           @click="menuOpen = false; roleModalOpen = true"
                           class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-ink transition-colors hover:bg-surface dark:text-ink-dark dark:hover:bg-white/5"
                         >
-                          <i data-lucide="shield" class="h-4 w-4 shrink-0"></i> Change Role
+                          <i class="ph ph-shield text-[16px] shrink-0"></i> Change Role
                         </button>
                       {% endif %}
 
@@ -118,12 +118,12 @@
                           {% if member.is_active %}
                             <input type="hidden" name="action" value="suspend">
                             <button type="submit" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-warning transition-colors hover:bg-warning/10 dark:text-warning-dark">
-                              <i data-lucide="user-x" class="h-4 w-4 shrink-0"></i> Suspend
+                              <i class="ph ph-user-minus text-[16px] shrink-0"></i> Suspend
                             </button>
                           {% else %}
                             <input type="hidden" name="action" value="activate">
                             <button type="submit" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-success transition-colors hover:bg-success/10 dark:text-success-dark">
-                              <i data-lucide="user-check" class="h-4 w-4 shrink-0"></i> Reactivate
+                              <i class="ph ph-user-check text-[16px] shrink-0"></i> Reactivate
                             </button>
                           {% endif %}
                         </form>
@@ -135,7 +135,7 @@
                           <input type="hidden" name="user_id" value="{{ member.id }}">
                           <input type="hidden" name="action" value="delete">
                           <button type="submit" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-danger transition-colors hover:bg-danger/10 dark:text-danger-dark">
-                            <i data-lucide="trash-2" class="h-4 w-4 shrink-0"></i> Delete
+                            <i class="ph ph-trash text-[16px] shrink-0"></i> Delete
                           </button>
                         </form>
                       {% endif %}
@@ -164,7 +164,7 @@
                                 <p class="mt-0.5 truncate text-sm text-muted dark:text-muted-dark">{{ member.get_full_name|default:member.username }}</p>
                               </div>
                               <button type="button" @click="roleModalOpen = false" class="shrink-0 rounded-lg p-1.5 text-muted transition-colors hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5" aria-label="Close">
-                                <i data-lucide="x" class="h-4 w-4"></i>
+                                <i class="ph ph-x text-[16px]"></i>
                               </button>
                             </div>
 
@@ -204,7 +204,7 @@
                                   Cancel
                                 </button>
                                 <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-                                  <i data-lucide="check" class="h-4 w-4"></i> Save Role
+                                  <i class="ph ph-check text-[16px]"></i> Save Role
                                 </button>
                               </div>
                             </form>

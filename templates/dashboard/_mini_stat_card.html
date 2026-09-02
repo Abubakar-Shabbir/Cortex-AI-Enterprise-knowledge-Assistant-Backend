@@ -15,12 +15,12 @@ each metric gets its own color instead of one repeated tone. Falls
 back to the primary brand color when omitted.
 {% endcomment %}
 
-<div class="min-w-0 rounded-xl border border-line bg-card p-3 shadow-soft transition-transform hover:-translate-y-0.5 dark:border-line-dark dark:bg-card-dark">
+<div class="group min-w-0 rounded-xl border border-line bg-card p-3 shadow-soft transition-transform hover:-translate-y-0.5 dark:border-line-dark dark:bg-card-dark">
 
   <div class="flex items-center justify-between">
     <span class="text-xs font-medium leading-snug text-muted dark:text-muted-dark">{{ label }}</span>
-    <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg {{ icon_bg|default:"bg-primary/10" }} {{ icon_color|default:"text-primary" }}">
-      <i data-lucide="{{ icon }}" class="h-4 w-4"></i>
+    <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105 {{ icon_bg|default:"bg-primary/10" }} {{ icon_color|default:"text-primary" }}">
+      <i class="ph ph-{{ icon }} text-[16px]"></i>
     </div>
   </div>
 

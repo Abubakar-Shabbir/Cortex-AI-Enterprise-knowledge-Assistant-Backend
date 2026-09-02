@@ -15,7 +15,7 @@ view's context), same structural pattern as _recent_uploads.html.
     {% for run in recent_ai_task_runs %}
       <a href="{% url 'ai_task_results' run.id %}" class="flex items-center gap-2.5 px-3.5 py-1.5 hover:bg-surface dark:hover:bg-white/5">
         <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <i data-lucide="sparkles" class="h-4 w-4"></i>
+          <i class="ph ph-sparkle text-[16px]"></i>
         </div>
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-medium leading-snug text-ink dark:text-ink-dark">{{ run.get_task_type_display }}</p>

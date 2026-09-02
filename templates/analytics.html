@@ -8,12 +8,12 @@
 
 {# flex-wrap, not a fixed grid-cols-4 - card count varies 4-7 by permission, so a rigid grid leaves a lopsided trailing row. Equal min-width flex items always fill evenly regardless of count. #}
 <div class="mb-4 flex flex-wrap gap-3">
-  <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="message-square" label="Questions (14d)" value=data.total_questions numeric=True %}</div>
-  <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="file-up" label="Uploads (14d)" value=data.total_uploads numeric=True %}</div>
+  <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="chat-circle" label="Questions (14d)" value=data.total_questions numeric=True %}</div>
+  <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="file-arrow-up" label="Uploads (14d)" value=data.total_uploads numeric=True %}</div>
   <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="timer" label="Average Response Time" value=data.avg_response_time %}</div>
   <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="hard-drive" label="Storage Used" value=data.total_storage %}</div>
   {% if "pages.ai_tasks" in user_permissions %}
-    <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="sparkles" label="AI Task Runs (14d)" value=data.total_ai_task_runs numeric=True %}</div>
+    <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="sparkle" label="AI Task Runs (14d)" value=data.total_ai_task_runs numeric=True %}</div>
   {% endif %}
   {% if "pages.knowledge_base" in user_permissions %}
     <div class="min-w-[190px] flex-1">{% include "partials/_stat_card.html" with icon="compass" label="Topics" value=data.total_topics numeric=True %}</div>
@@ -95,7 +95,7 @@
   {% if ai_performance.has_data %}
     <div class="mb-4 flex flex-wrap gap-3">
       <div class="min-w-[150px] flex-1">{% include "partials/_stat_card.html" with icon="activity" label="Total Requests" value=ai_performance.total_requests numeric=True %}</div>
-      <div class="min-w-[150px] flex-1">{% include "partials/_stat_card.html" with icon="check-circle-2" label="Success Rate" value=ai_performance.success_rate sublabel="percent" %}</div>
+      <div class="min-w-[150px] flex-1">{% include "partials/_stat_card.html" with icon="check-circle" label="Success Rate" value=ai_performance.success_rate sublabel="percent" %}</div>
       <div class="min-w-[150px] flex-1">{% include "partials/_stat_card.html" with icon="timer" label="Avg Latency" value=ai_performance.avg_latency_ms sublabel="ms" %}</div>
       <div class="min-w-[150px] flex-1">{% include "partials/_stat_card.html" with icon="gauge" label="P95 Latency" value=ai_performance.p95_latency_ms sublabel="ms" %}</div>
       <div class="min-w-[150px] flex-1">{% include "partials/_stat_card.html" with icon="git-branch" label="Fallback Rate" value=ai_performance.fallback_rate sublabel="percent" %}</div>
@@ -214,19 +214,19 @@
   const weekdayLabels = read('weekday-labels-data');
   const weekdayValues = read('weekday-values-data');
 
-  const gridColor = 'rgba(109, 102, 101, 0.10)';
-  const tickColor = '#8a7d7d';
+  const gridColor = 'rgba(106, 106, 106, 0.10)';
+  const tickColor = '#6A6A6A';
 
   // A genuinely colorful, varied palette (not just brand-maroon shades)
   // for the multi-series/multi-category charts below.
-  const primary = '#8B1E2D';
-  const wine = '#6D1B27';
-  const rose = '#A6333F';
-  const info = '#2A78D6';
-  const success = '#1F7A4D';
-  const warning = '#C77700';
-  const accent = '#4A3AA7';
-  const palette = [primary, info, success, warning, accent, rose, '#0F9B8E', '#D6336C'];
+  const primary = '#FF385C';
+  const primaryDark = '#E00B41';
+  const primaryLight = '#FF6B85';
+  const info = '#0EA5E9';
+  const success = '#16A34A';
+  const warning = '#D97706';
+  const accent = '#460479';
+  const palette = [primary, info, success, warning, accent, primaryLight, '#0F9B8E', '#D6336C'];
   const storageColorMap = { PDF: primary, DOCX: warning, TXT: success };
 
   Chart.defaults.font.family = 'Inter, ui-sans-serif, system-ui, sans-serif';
@@ -326,7 +326,7 @@
   // ---- Storage by File Type: color matched to file type ----
   new Chart(document.getElementById('storageChart'), {
     type: 'bar',
-    data: { labels: storageLabels, datasets: [{ label: 'Bytes', data: storageValues, backgroundColor: storageLabels.map((l) => storageColorMap[l] || wine), borderRadius: 6, maxBarThickness: 36 }] },
+    data: { labels: storageLabels, datasets: [{ label: 'Bytes', data: storageValues, backgroundColor: storageLabels.map((l) => storageColorMap[l] || primaryDark), borderRadius: 6, maxBarThickness: 36 }] },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
@@ -386,7 +386,7 @@
   if (aiTaskStatusCanvas) {
     const statusLabels = read('ai-task-status-labels-data');
     const statusValues = read('ai-task-status-values-data');
-    const statusColorMap = { Completed: success, Failed: primary, Running: warning, Pending: tickColor, Cancelled: '#A9989A' };
+    const statusColorMap = { Completed: success, Failed: primary, Running: warning, Pending: tickColor, Cancelled: '#A3A3A3' };
     new Chart(aiTaskStatusCanvas, {
       type: 'doughnut',
       data: {

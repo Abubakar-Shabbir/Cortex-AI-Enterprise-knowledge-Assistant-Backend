@@ -113,14 +113,14 @@ def sidebar_status(request):
 
     for doc in Document.objects.filter(user=request.user).order_by("-uploaded_at")[:3]:
         events.append({
-            "icon": "file-up",
+            "icon": "file-arrow-up",
             "text": f'"{doc.title}" uploaded',
             "at": doc.uploaded_at,
         })
 
     for log in QueryLog.objects.filter(user=request.user).order_by("-created_at")[:3]:
         events.append({
-            "icon": "message-square",
+            "icon": "chat-circle",
             "text": f'Asked: "{log.question[:60]}"',
             "at": log.created_at,
         })

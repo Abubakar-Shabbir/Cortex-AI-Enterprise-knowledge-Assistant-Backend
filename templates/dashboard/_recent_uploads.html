@@ -14,7 +14,7 @@ Recent Uploads — reuses recent_documents from stats_service.get_recent_activit
     {% for doc in recent_documents %}
       <div class="flex items-center gap-2.5 px-3.5 py-1.5">
         <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <i data-lucide="file-text" class="h-4 w-4"></i>
+          <i class="ph ph-file-text text-[16px]"></i>
         </div>
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm font-medium leading-snug text-ink dark:text-ink-dark">{{ doc.title }}</p>

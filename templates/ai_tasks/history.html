@@ -5,7 +5,7 @@
 {% block content %}
 
 {% url 'ai_tasks' as ai_tasks_url %}
-{% include "partials/_page_header.html" with title="AI Task History" subtitle="Every guided AI Task you've run, and its results." action_url=ai_tasks_url action_label="New AI Task" action_icon="sparkles" %}
+{% include "partials/_page_header.html" with title="AI Task History" subtitle="Every guided AI Task you've run, and its results." action_url=ai_tasks_url action_label="New AI Task" action_icon="sparkle" %}
 
 <form id="csrf-source" class="hidden">{% csrf_token %}</form>
 
@@ -28,7 +28,7 @@
               <td class="px-5 py-3.5">
                 <div class="flex items-center gap-2.5">
                   <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-                    <i data-lucide="sparkles" class="h-4 w-4"></i>
+                    <i class="ph ph-sparkle text-[16px]"></i>
                   </div>
                   <span class="font-medium text-ink dark:text-ink-dark">{{ run.get_task_type_display }}</span>
                 </div>
@@ -52,15 +52,15 @@
               <td class="px-5 py-3.5 text-right">
                 <div class="inline-flex items-center gap-1.5">
                   <a href="{% url 'ai_task_results' run.id %}" class="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-                    <i data-lucide="eye" class="h-3.5 w-3.5"></i> View
+                    <i class="ph ph-eye text-[14px]"></i> View
                   </a>
                   {% if run.status == 'pending' or run.status == 'running' %}
                     <span class="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-medium text-muted opacity-60 dark:border-line-dark dark:text-muted-dark" title="Stop this run first (from the View page) before deleting it.">
-                      <i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete
+                      <i class="ph ph-trash text-[14px]"></i> Delete
                     </span>
                   {% else %}
                     <button type="button" onclick="deleteAiTaskRun({{ run.id }}, this)" class="inline-flex items-center gap-1.5 rounded-lg border border-danger/30 bg-danger/5 px-3 py-1.5 text-xs font-medium text-danger transition-colors hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-danger-dark/30 dark:text-danger-dark dark:hover:bg-danger-dark/10">
-                      <i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete
+                      <i class="ph ph-trash text-[14px]"></i> Delete
                     </button>
                   {% endif %}
                 </div>
@@ -85,7 +85,7 @@
       </div>
     {% endif %}
   {% else %}
-    {% include "partials/_empty_state.html" with icon="sparkles" title="No AI Tasks run yet" message="Run your first guided AI Task over a set of documents." action_url=ai_tasks_url action_label="Start an AI Task" %}
+    {% include "partials/_empty_state.html" with icon="sparkle" title="No AI Tasks run yet" message="Run your first guided AI Task over a set of documents." action_url=ai_tasks_url action_label="Start an AI Task" %}
   {% endif %}
 </div>
 

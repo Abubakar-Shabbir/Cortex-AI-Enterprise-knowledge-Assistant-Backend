@@ -9,11 +9,11 @@ Optional `label` overrides the default "vs last 7 days" (e.g. "vs yesterday" for
     {% elif trend.direction == 'down' %} text-danger dark:text-danger-dark
     {% else %} text-muted dark:text-muted-dark {% endif %}">
     {% if trend.direction == 'up' %}
-      <i data-lucide="trending-up" class="h-3.5 w-3.5"></i>
+      <i class="ph ph-trend-up text-[14px]"></i>
     {% elif trend.direction == 'down' %}
-      <i data-lucide="trending-down" class="h-3.5 w-3.5"></i>
+      <i class="ph ph-trend-down text-[14px]"></i>
     {% else %}
-      <i data-lucide="minus" class="h-3.5 w-3.5"></i>
+      <i class="ph ph-minus text-[14px]"></i>
     {% endif %}
     {{ trend.change_pct }}%
     <span class="font-normal text-muted dark:text-muted-dark">{{ label|default:"vs last 7 days" }}</span>

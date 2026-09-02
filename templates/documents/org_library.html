@@ -9,7 +9,7 @@
 {% include "partials/_documents_tabs.html" with active="org" %}
 
 <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-2">
-  {% include "partials/_stat_card.html" with icon="library" label="Total Library Documents" value=total_org_documents numeric=True %}
+  {% include "partials/_stat_card.html" with icon="books" label="Total Library Documents" value=total_org_documents numeric=True %}
   {% include "partials/_stat_card.html" with icon="hard-drive" label="Library Storage" value=total_org_storage %}
 </div>
 
@@ -19,10 +19,10 @@
       <div class="min-w-[240px] flex-1">
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Find a document to publish</label>
         <input type="text" name="add_q" value="{{ add_query }}" placeholder="Search by title, any user's document…"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
       <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-        <i data-lucide="search" class="h-4 w-4"></i> Search
+        <i class="ph ph-magnifying-glass text-[16px]"></i> Search
       </button>
     </form>
 
@@ -31,7 +31,7 @@
         {% for doc in add_candidates %}
           <div class="flex items-center justify-between rounded-lg border border-line px-3 py-2 text-sm dark:border-line-dark">
             <div class="flex items-center gap-2 truncate">
-              <i data-lucide="file-text" class="h-3.5 w-3.5 shrink-0 text-muted dark:text-muted-dark"></i>
+              <i class="ph ph-file-text text-[14px] shrink-0 text-muted dark:text-muted-dark"></i>
               <span class="truncate text-ink dark:text-ink-dark">{{ doc.title }}</span>
               <span class="shrink-0 text-xs text-muted dark:text-muted-dark">by {{ doc.user.username }}</span>
             </div>
@@ -70,7 +70,7 @@
               <td class="px-5 py-3.5">
                 <div class="flex items-center gap-2.5">
                   <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-                    <i data-lucide="library" class="h-4 w-4"></i>
+                    <i class="ph ph-books text-[16px]"></i>
                   </div>
                   <span class="max-w-[220px] truncate font-medium text-ink dark:text-ink-dark">{{ item.doc.title }}</span>
                 </div>
@@ -90,16 +90,16 @@
               <td class="px-5 py-3.5">
                 <div class="flex items-center justify-end gap-1">
                   <a href="{% url 'document_download' item.doc.id %}" target="_blank" title="Open" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="external-link" class="h-4 w-4"></i>
+                    <i class="ph ph-arrow-square-out text-[16px]"></i>
                   </a>
                   <a href="{% url 'document_download' item.doc.id %}?download=1" title="Download" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="download" class="h-4 w-4"></i>
+                    <i class="ph ph-download-simple text-[16px]"></i>
                   </a>
                   {% if can_manage %}
                     <form method="POST" action="{% url 'org_library_toggle' item.doc.id %}" onsubmit="return confirm('Remove this document from the Organization Library?');">
                       {% csrf_token %}
                       <button type="submit" title="Remove from Library" class="rounded-lg p-2 text-muted transition-colors hover:bg-danger/10 hover:text-danger dark:text-muted-dark dark:hover:text-danger-dark">
-                        <i data-lucide="library-big" class="h-4 w-4"></i>
+                        <i class="ph ph-books text-[16px]"></i>
                       </button>
                     </form>
                   {% endif %}
@@ -125,7 +125,7 @@
       </div>
     {% endif %}
   {% else %}
-    {% include "partials/_empty_state.html" with icon="library" title="Nothing in the Organization Library yet" message="An Admin can add a document to the library from My Documents." %}
+    {% include "partials/_empty_state.html" with icon="books" title="Nothing in the Organization Library yet" message="An Admin can add a document to the library from My Documents." %}
   {% endif %}
 </div>
 

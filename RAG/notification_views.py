@@ -28,18 +28,18 @@ logger = logging.getLogger(__name__)
 # added later (see CLAUDE.md's Notification Events section) never needs
 # a template change to render sensibly.
 _NOTIFICATION_ICONS = {
-    "document.shared": "share-2",
-    "document.access_revoked": "shield-off",
-    "document.uploaded": "file-up",
+    "document.shared": "share-network",
+    "document.access_revoked": "shield-slash",
+    "document.uploaded": "file-arrow-up",
     "document.processing_completed": "check-circle",
     "document.processing_failed": "x-circle",
-    "ai_task.completed": "sparkles",
-    "ai_task.failed": "alert-triangle",
-    "account.verified": "badge-check",
-    "account.password_changed": "key-round",
+    "ai_task.completed": "sparkle",
+    "ai_task.failed": "warning",
+    "account.verified": "certificate",
+    "account.password_changed": "key",
     "account.role_changed": "shield",
-    "security.new_login": "shield-alert",
-    "security.account_suspended": "user-x",
+    "security.new_login": "shield-warning",
+    "security.account_suspended": "user-minus",
     "security.account_reactivated": "user-check",
     "system.announcement": "megaphone",
 }

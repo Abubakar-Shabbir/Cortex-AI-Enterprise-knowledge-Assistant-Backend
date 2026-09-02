@@ -40,22 +40,22 @@ PERMISSION_MODULES = (
         "pages.documents", "documents.view_all", "documents.delete_any",
         "documents.share", "documents.manage_org_library",
     )),
-    ("knowledge_base", "Knowledge Base", "share-2", (
+    ("knowledge_base", "Knowledge Base", "share-network", (
         "pages.knowledge_base",
     )),
-    ("ask_ai", "AI Search", "message-square", (
+    ("ask_ai", "AI Search", "chat-circle", (
         "pages.ask_ai",
     )),
-    ("queries", "Queries", "search", (
+    ("queries", "Queries", "magnifying-glass", (
         "queries.view_all_logs", "queries.view_content",
     )),
-    ("analytics", "Analytics", "bar-chart-3", (
+    ("analytics", "Analytics", "chart-bar", (
         "pages.analytics", "analytics.view_all",
     )),
-    ("reports", "Reports", "file-down", (
+    ("reports", "Reports", "file-arrow-down", (
         "pages.reports",
     )),
-    ("ai_tasks", "AI Tasks", "sparkles", (
+    ("ai_tasks", "AI Tasks", "sparkle", (
         "pages.ai_tasks",
     )),
     ("users", "Users", "users", (
@@ -64,15 +64,15 @@ PERMISSION_MODULES = (
     ("roles", "Roles", "shield", (
         "roles.manage",
     )),
-    ("settings", "Settings", "settings", (
+    ("settings", "Settings", "gear-six", (
         "settings.manage_llm", "settings.manage_chunking", "settings.manage_retrieval",
         "settings.manage_embedding", "settings.manage_api_keys", "settings.manage_database",
     )),
-    ("system", "System Health", "heart-pulse", (
+    ("system", "System Health", "heartbeat", (
         "system.view_health", "system.view_ai_logs", "system.view_storage",
         "system.view_embeddings", "system.view_api_status",
     )),
-    ("activity", "Activity Logs", "scroll-text", (
+    ("activity", "Activity Logs", "scroll", (
         "activity.view_all_logs", "activity.view_ip_location",
     )),
     ("notifications", "Notifications", "bell", (
@@ -126,7 +126,7 @@ def get_permission_modules():
         modules.append({
             "slug": namespace,
             "label": namespace.replace("_", " ").title(),
-            "icon": "puzzle",
+            "icon": "puzzle-piece",
             "permissions": perms,
         })
 

@@ -41,7 +41,7 @@ existing document_delete view.
             >
               <td class="max-w-[220px] truncate px-3.5 py-2 font-medium text-ink dark:text-ink-dark">
                 <span class="flex items-center gap-2.5">
-                  <i data-lucide="file-text" class="h-4 w-4 shrink-0 text-primary dark:text-primary-soft"></i>
+                  <i class="ph ph-file-text text-[16px] shrink-0 text-primary dark:text-primary-soft"></i>
                   <span class="truncate">{{ doc.title }}</span>
                 </span>
               </td>
@@ -61,16 +61,16 @@ existing document_delete view.
               <td class="px-3.5 py-2 text-right">
                 <div class="relative inline-block text-left" x-data="{ open: false }" @click.outside="open = false">
                   <button @click="open = !open" class="rounded-lg p-1.5 text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5" aria-label="Row actions">
-                    <i data-lucide="more-horizontal" class="h-4 w-4"></i>
+                    <i class="ph ph-dots-three text-[16px]"></i>
                   </button>
                   <div x-show="open" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-line bg-card p-1.5 shadow-soft dark:border-line-dark dark:bg-card-dark">
                     <a href="{% url 'documents' %}" class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-ink hover:bg-surface dark:text-ink-dark dark:hover:bg-white/5">
-                      <i data-lucide="eye" class="h-3.5 w-3.5 text-muted dark:text-muted-dark"></i> View
+                      <i class="ph ph-eye text-[14px] text-muted dark:text-muted-dark"></i> View
                     </a>
                     <form method="POST" action="{% url 'document_delete' doc.id %}" onsubmit="return confirm('Delete this document?');">
                       {% csrf_token %}
                       <button type="submit" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger/10 dark:text-danger-dark">
-                        <i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete
+                        <i class="ph ph-trash text-[14px]"></i> Delete
                       </button>
                     </form>
                   </div>

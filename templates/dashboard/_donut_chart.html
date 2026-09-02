@@ -32,7 +32,7 @@ Document.file_type breakdown (stats_service.get_document_type_breakdown).
       {% endfor %}
     </div>
   {% else %}
-    {% include "partials/_empty_state.html" with icon="pie-chart" title="No documents yet" message="Upload a document to see its type breakdown here." action_url=documents_url action_label="Go to Documents" %}
+    {% include "partials/_empty_state.html" with icon="chart-pie" title="No documents yet" message="Upload a document to see its type breakdown here." action_url=documents_url action_label="Go to Documents" %}
   {% endif %}
 </div>
 

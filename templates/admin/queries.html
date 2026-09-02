@@ -10,8 +10,8 @@
   {% include "partials/_page_header.html" with title="Queries" subtitle="Every question asked across the workspace, with search, filters, and analytics. Question/answer content stays private unless you hold the auditing permission." %}
 
   <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-    {% include "partials/_stat_card.html" with label="Total Queries" icon="search" value=analytics.total numeric=True %}
-    {% include "partials/_stat_card.html" with label="Answered" icon="check-circle-2" value=analytics.answered_pct sublabel="% of all queries" numeric=True %}
+    {% include "partials/_stat_card.html" with label="Total Queries" icon="magnifying-glass" value=analytics.total numeric=True %}
+    {% include "partials/_stat_card.html" with label="Answered" icon="check-circle" value=analytics.answered_pct sublabel="% of all queries" numeric=True %}
     {% include "partials/_stat_card.html" with label="Avg Confidence" icon="gauge" value=analytics.avg_confidence sublabel="percent" numeric=True %}
     {% include "partials/_stat_card.html" with label="Avg Response" icon="timer" value=analytics.avg_response_time sublabel="milliseconds" numeric=True %}
     {% include "partials/_stat_card.html" with label="Flagged" icon="flag" value=analytics.flagged_count numeric=True %}
@@ -25,13 +25,13 @@
         <div class="lg:col-span-2">
           <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Search content</label>
           <input type="text" name="q" value="{{ filters.q }}" placeholder="Question or answer text…"
-            class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+            class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
         </div>
       {% else %}
         <div class="lg:col-span-2">
           <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Owner</label>
           <input type="text" name="owner" value="{{ filters.owner }}" placeholder="Username…"
-            class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+            class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
         </div>
       {% endif %}
 
@@ -39,13 +39,13 @@
         <div>
           <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Owner</label>
           <input type="text" name="owner" value="{{ filters.owner }}" placeholder="Username…"
-            class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+            class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
         </div>
       {% endif %}
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Scope</label>
-        <select name="scope" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="scope" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Everyone</option>
           <option value="mine" {% if filters.scope == "mine" %}selected{% endif %}>My own queries</option>
           <option value="others" {% if filters.scope == "others" %}selected{% endif %}>Other members' queries</option>
@@ -54,7 +54,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Status</label>
-        <select name="status" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="status" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           <option value="answered" {% if filters.status == "answered" %}selected{% endif %}>Answered</option>
           <option value="not_found" {% if filters.status == "not_found" %}selected{% endif %}>No Answer Found</option>
@@ -63,7 +63,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Method</label>
-        <select name="method" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="method" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           {% for method in search_methods %}
             <option value="{{ method }}" {% if filters.method == method %}selected{% endif %}>{{ method }}</option>
@@ -73,7 +73,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Min. confidence</label>
-        <select name="min_confidence" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="min_confidence" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           <option value="25" {% if filters.min_confidence == "25" %}selected{% endif %}>25%+</option>
           <option value="50" {% if filters.min_confidence == "50" %}selected{% endif %}>50%+</option>
@@ -84,7 +84,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Sort</label>
-        <select name="sort" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="sort" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="newest" {% if filters.sort == "newest" or not filters.sort %}selected{% endif %}>Newest first</option>
           <option value="oldest" {% if filters.sort == "oldest" %}selected{% endif %}>Oldest first</option>
           <option value="confidence_high" {% if filters.sort == "confidence_high" %}selected{% endif %}>Confidence: high → low</option>
@@ -97,13 +97,13 @@
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">From</label>
         <input type="date" name="date_from" value="{{ filters.date_from }}"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">To</label>
         <input type="date" name="date_to" value="{{ filters.date_to }}"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <label class="flex items-center gap-2 self-end pb-2 text-sm text-ink dark:text-ink-dark">
@@ -114,13 +114,13 @@
 
       <div class="flex items-end gap-2 lg:col-span-2">
         <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-          <i data-lucide="filter" class="h-4 w-4"></i> Apply
+          <i class="ph ph-funnel text-[16px]"></i> Apply
         </button>
         <a href="{% url 'admin_queries' %}" class="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface dark:border-line-dark dark:text-ink-dark dark:hover:bg-white/5">
           Reset
         </a>
         <a href="{% url 'export_queries_report' %}?{{ request.GET.urlencode }}" class="ml-auto inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-          <i data-lucide="download" class="h-4 w-4"></i> Export CSV
+          <i class="ph ph-download-simple text-[16px]"></i> Export CSV
         </a>
       </div>
     </form>
@@ -152,7 +152,7 @@
                     <span class="truncate block" title="{{ log.question }}">{{ log.question }}</span>
                   {% else %}
                     <span class="inline-flex items-center gap-1.5 text-muted dark:text-muted-dark">
-                      <i data-lucide="lock" class="h-3.5 w-3.5"></i> Protected
+                      <i class="ph ph-lock text-[14px]"></i> Protected
                     </span>
                   {% endif %}
                 </td>
@@ -175,12 +175,12 @@
                       class="flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
                       :title="flagged[{{ log.id }}] ? 'Unpin' : 'Pin for follow-up'"
                       :class="flagged[{{ log.id }}] ? 'text-warning hover:bg-warning/10' : 'text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5'">
-                      <i data-lucide="flag" class="h-4 w-4"></i>
+                      <i class="ph ph-flag text-[16px]"></i>
                     </button>
                     {% if can_view_content %}
                       <button type="button" @click="openDetail({{ log.id }})"
                         class="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:text-ink-dark dark:hover:bg-primary/10">
-                        <i data-lucide="eye" class="h-3.5 w-3.5"></i> View
+                        <i class="ph ph-eye text-[14px]"></i> View
                       </button>
                     {% endif %}
                   </div>
@@ -206,7 +206,7 @@
       {% endif %}
 
     {% else %}
-      {% include "partials/_empty_state.html" with icon="search" title="No queries match these filters" %}
+      {% include "partials/_empty_state.html" with icon="magnifying-glass" title="No queries match these filters" %}
     {% endif %}
 
   </div>
@@ -227,7 +227,7 @@
               <p class="text-xs text-muted dark:text-muted-dark" x-text="detail.data.created_at"></p>
             </div>
             <button type="button" @click="closeDetail()" class="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5">
-              <i data-lucide="x" class="h-4 w-4"></i>
+              <i class="ph ph-x text-[16px]"></i>
             </button>
           </div>
 

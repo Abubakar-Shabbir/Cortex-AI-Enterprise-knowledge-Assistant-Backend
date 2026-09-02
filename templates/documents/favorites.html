@@ -28,9 +28,9 @@
               x-data="{ favorite: true }">
               <td class="px-5 py-3.5">
                 <div class="flex items-center gap-2.5">
-                  <i data-lucide="star" class="h-4 w-4 shrink-0 fill-warning text-warning"></i>
+                  <i class="ph ph-star text-[16px] shrink-0 fill-warning text-warning"></i>
                   <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-                    <i data-lucide="file-text" class="h-4 w-4"></i>
+                    <i class="ph ph-file-text text-[16px]"></i>
                   </div>
                   <span class="max-w-[220px] truncate font-medium text-ink dark:text-ink-dark">{{ item.doc.title }}</span>
                 </div>
@@ -50,15 +50,15 @@
               <td class="px-5 py-3.5">
                 <div class="flex items-center justify-end gap-1">
                   <a href="{% url 'document_download' item.doc.id %}" target="_blank" title="Open" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="external-link" class="h-4 w-4"></i>
+                    <i class="ph ph-arrow-square-out text-[16px]"></i>
                   </a>
                   <a href="{% url 'document_download' item.doc.id %}?download=1" title="Download" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="download" class="h-4 w-4"></i>
+                    <i class="ph ph-download-simple text-[16px]"></i>
                   </a>
                   <form method="POST" action="{% url 'document_favorite_toggle' item.doc.id %}" x-show="favorite" @submit.prevent="fetch($el.action, {method: 'POST', headers: {'X-CSRFToken': $el.querySelector('[name=csrfmiddlewaretoken]').value}}).then(() => { favorite = false; $el.closest('tr').remove(); })">
                     {% csrf_token %}
                     <button type="submit" title="Remove from Favorites" class="rounded-lg p-2 text-muted transition-colors hover:bg-danger/10 hover:text-danger dark:text-muted-dark dark:hover:text-danger-dark">
-                      <i data-lucide="star-off" class="h-4 w-4"></i>
+                      <i class="ph ph-star text-[16px]"></i>
                     </button>
                   </form>
                 </div>

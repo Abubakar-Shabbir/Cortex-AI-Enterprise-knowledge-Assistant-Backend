@@ -40,10 +40,10 @@ def dashboard_view(request):
     # since user_dashboard.html's Activity Feed card renders that same
     # global context var.
     events = [
-        {"icon": "file-up", "text": f'"{doc.title}" uploaded', "at": doc.uploaded_at}
+        {"icon": "file-arrow-up", "text": f'"{doc.title}" uploaded', "at": doc.uploaded_at}
         for doc in activity["recent_documents"]
     ] + [
-        {"icon": "message-square", "text": f'Asked: "{log.question[:60]}"', "at": log.created_at}
+        {"icon": "chat-circle", "text": f'Asked: "{log.question[:60]}"', "at": log.created_at}
         for log in activity["recent_questions"]
     ]
     events.sort(key=lambda e: e["at"], reverse=True)
@@ -131,10 +131,10 @@ def admin_overview_view(request):
     role, can_view_admin_area, user_permissions = get_user_access_snapshot(user)
 
     events = [
-        {"icon": "file-up", "text": f'"{doc.title}" uploaded', "at": doc.uploaded_at}
+        {"icon": "file-arrow-up", "text": f'"{doc.title}" uploaded', "at": doc.uploaded_at}
         for doc in activity["recent_documents"]
     ] + [
-        {"icon": "message-square", "text": f'Asked: "{log.question[:60]}"', "at": log.created_at}
+        {"icon": "chat-circle", "text": f'Asked: "{log.question[:60]}"', "at": log.created_at}
         for log in activity["recent_questions"]
     ]
     events.sort(key=lambda e: e["at"], reverse=True)

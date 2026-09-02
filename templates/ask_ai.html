@@ -47,8 +47,8 @@
 >
 
   <div class="mb-6 flex items-center gap-3">
-    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-light text-white shadow-soft">
-      <i data-lucide="sparkles" class="h-5 w-5"></i>
+    <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-soft">
+      <i class="ph ph-sparkle text-[20px]"></i>
     </div>
     <div>
       <h1 class="text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">AI Search</h1>
@@ -58,7 +58,7 @@
 
   {% if suggested_questions %}
     <div class="mb-6 flex flex-wrap items-center gap-2">
-      <span class="flex items-center gap-1 text-xs font-medium text-muted dark:text-muted-dark"><i data-lucide="wand-2" class="h-3.5 w-3.5"></i> Suggested:</span>
+      <span class="flex items-center gap-1 text-xs font-medium text-muted dark:text-muted-dark"><i class="ph ph-magic-wand text-[14px]"></i> Suggested:</span>
       {% for suggestion in suggested_questions %}
         <button
           type="button"
@@ -87,7 +87,7 @@
             maxlength="2000"
             required
             placeholder="e.g. What are the key findings in the Q3 report?"
-            class="w-full resize-none rounded-lg border border-line bg-surface p-3.5 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:placeholder:text-muted-dark"
+            class="w-full resize-none rounded-lg border border-line bg-surface p-3.5 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:placeholder:text-muted-dark"
             @keydown.enter.ctrl.prevent="$event.target.form.requestSubmit()"
             @keydown.enter.meta.prevent="$event.target.form.requestSubmit()"
           ></textarea>
@@ -112,9 +112,9 @@
                 class="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-medium text-ink transition-colors hover:border-primary/30 hover:text-primary dark:border-line-dark dark:text-ink-dark"
                 :class="showFilters && 'border-primary/40 text-primary dark:text-primary-soft'"
               >
-                <i data-lucide="sliders-horizontal" class="h-3.5 w-3.5"></i> Advanced Filters
+                <i class="ph ph-faders-horizontal text-[14px]"></i> Advanced Filters
                 <span x-show="activeFilterCount > 0" x-text="activeFilterCount" class="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white dark:bg-primary-soft dark:text-card-dark"></span>
-                <i data-lucide="chevron-down" class="h-3.5 w-3.5 transition-transform duration-150" :class="showFilters && 'rotate-180'"></i>
+                <i class="ph ph-caret-down text-[14px] transition-transform duration-150" :class="showFilters && 'rotate-180'"></i>
               </button>
             </div>
 
@@ -123,7 +123,7 @@
               x-show="!submitting"
               class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark"
             >
-              <i data-lucide="send" class="h-4 w-4"></i>
+              <i class="ph ph-paper-plane-tilt text-[16px]"></i>
               <span>Ask AI</span>
             </button>
             <button
@@ -133,7 +133,7 @@
               @click="stopStreaming()"
               class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-danger/40 hover:text-danger dark:border-line-dark dark:bg-white/5 dark:text-ink-dark"
             >
-              <i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i>
+              <i class="ph ph-circle-notch text-[16px] animate-spin"></i>
               <span>Stop generating</span>
             </button>
           </div>
@@ -149,43 +149,43 @@
             <template x-if="filters.fileTypes.length">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary dark:text-primary-soft">
                 Type: <span x-text="filters.fileTypes.map(t => t.toUpperCase()).join(', ')"></span>
-                <button type="button" @click="clearFilter('fileTypes')"><i data-lucide="x" class="h-3 w-3"></i></button>
+                <button type="button" @click="clearFilter('fileTypes')"><i class="ph ph-x text-[12px]"></i></button>
               </span>
             </template>
             <template x-if="filters.uploadedAfter">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary dark:text-primary-soft">
                 After <span x-text="filters.uploadedAfter"></span>
-                <button type="button" @click="clearFilter('uploadedAfter')"><i data-lucide="x" class="h-3 w-3"></i></button>
+                <button type="button" @click="clearFilter('uploadedAfter')"><i class="ph ph-x text-[12px]"></i></button>
               </span>
             </template>
             <template x-if="filters.uploadedBefore">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary dark:text-primary-soft">
                 Before <span x-text="filters.uploadedBefore"></span>
-                <button type="button" @click="clearFilter('uploadedBefore')"><i data-lucide="x" class="h-3 w-3"></i></button>
+                <button type="button" @click="clearFilter('uploadedBefore')"><i class="ph ph-x text-[12px]"></i></button>
               </span>
             </template>
             <template x-if="filters.collectionId">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary dark:text-primary-soft">
                 Collection: <span x-text="filters.collectionLabel"></span>
-                <button type="button" @click="clearFilter('collectionId')"><i data-lucide="x" class="h-3 w-3"></i></button>
+                <button type="button" @click="clearFilter('collectionId')"><i class="ph ph-x text-[12px]"></i></button>
               </span>
             </template>
             <template x-if="filters.categoryId">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary dark:text-primary-soft">
                 Category: <span x-text="filters.categoryLabel"></span>
-                <button type="button" @click="clearFilter('categoryId')"><i data-lucide="x" class="h-3 w-3"></i></button>
+                <button type="button" @click="clearFilter('categoryId')"><i class="ph ph-x text-[12px]"></i></button>
               </span>
             </template>
             <template x-if="filters.tagId">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary dark:text-primary-soft">
                 Tag: <span x-text="filters.tagLabel"></span>
-                <button type="button" @click="clearFilter('tagId')"><i data-lucide="x" class="h-3 w-3"></i></button>
+                <button type="button" @click="clearFilter('tagId')"><i class="ph ph-x text-[12px]"></i></button>
               </span>
             </template>
             <template x-if="filters.orgLibraryOnly">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary dark:text-primary-soft">
                 Organization Library only
-                <button type="button" @click="clearFilter('orgLibraryOnly')"><i data-lucide="x" class="h-3 w-3"></i></button>
+                <button type="button" @click="clearFilter('orgLibraryOnly')"><i class="ph ph-x text-[12px]"></i></button>
               </span>
             </template>
             <button type="button" @click="clearAllFilters()" class="text-[11px] font-medium text-muted underline hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark">Clear all</button>
@@ -205,15 +205,15 @@
             </div>
             <div>
               <label for="uploaded_after" class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Uploaded after</label>
-              <input type="date" name="uploaded_after" id="uploaded_after" x-model="filters.uploadedAfter" class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
+              <input type="date" name="uploaded_after" id="uploaded_after" x-model="filters.uploadedAfter" class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
             </div>
             <div>
               <label for="uploaded_before" class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Uploaded before</label>
-              <input type="date" name="uploaded_before" id="uploaded_before" x-model="filters.uploadedBefore" class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
+              <input type="date" name="uploaded_before" id="uploaded_before" x-model="filters.uploadedBefore" class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
             </div>
             <div>
               <label for="collection_id" class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Collection</label>
-              <select name="collection_id" id="collection_id" x-model="filters.collectionId" @change="filters.collectionLabel = $event.target.selectedOptions[0].text" {% if not collections %}disabled{% endif %} class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-50 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
+              <select name="collection_id" id="collection_id" x-model="filters.collectionId" @change="filters.collectionLabel = $event.target.selectedOptions[0].text" {% if not collections %}disabled{% endif %} class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:opacity-50 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
                 <option value="">Any collection</option>
                 {% for collection in collections %}
                   <option value="{{ collection.id }}">{{ collection.name }}</option>
@@ -225,7 +225,7 @@
             </div>
             <div>
               <label for="category_id" class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Category</label>
-              <select name="category_id" id="category_id" x-model="filters.categoryId" @change="filters.categoryLabel = $event.target.selectedOptions[0].text" {% if not categories %}disabled{% endif %} class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-50 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
+              <select name="category_id" id="category_id" x-model="filters.categoryId" @change="filters.categoryLabel = $event.target.selectedOptions[0].text" {% if not categories %}disabled{% endif %} class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:opacity-50 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
                 <option value="">Any category</option>
                 {% for category in categories %}
                   <option value="{{ category.id }}">{{ category.name }}</option>
@@ -237,7 +237,7 @@
             </div>
             <div>
               <label for="tag_id" class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Tag</label>
-              <select name="tag_id" id="tag_id" x-model="filters.tagId" @change="filters.tagLabel = $event.target.selectedOptions[0].text" {% if not tags %}disabled{% endif %} class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-50 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
+              <select name="tag_id" id="tag_id" x-model="filters.tagId" @change="filters.tagLabel = $event.target.selectedOptions[0].text" {% if not tags %}disabled{% endif %} class="w-full rounded-lg border border-line bg-card px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:opacity-50 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
                 <option value="">Any tag</option>
                 {% for tag in tags %}
                   <option value="{{ tag.id }}">{{ tag.name }}</option>
@@ -250,7 +250,7 @@
             <div class="flex items-end sm:col-span-3">
               <label class="flex items-center gap-2 text-sm text-ink dark:text-ink-dark">
                 <input type="checkbox" name="org_library_only" value="1" x-model="filters.orgLibraryOnly" class="rounded border-line text-primary focus:ring-primary/30 dark:border-line-dark">
-                <span class="flex items-center gap-1.5"><i data-lucide="library" class="h-3.5 w-3.5"></i> Organization Library only</span>
+                <span class="flex items-center gap-1.5"><i class="ph ph-books text-[14px]"></i> Organization Library only</span>
               </label>
             </div>
           </div>
@@ -292,7 +292,7 @@
               title="Ask again"
               class="shrink-0 rounded-lg p-2 text-muted opacity-0 transition-opacity hover:text-primary group-hover:opacity-100 dark:text-muted-dark dark:hover:text-primary-soft"
             >
-              <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i>
+              <i class="ph ph-arrow-counter-clockwise text-[14px]"></i>
             </button>
           </div>
         {% empty %}
@@ -472,7 +472,7 @@
               <div id="ask-ai-live-card-body" class="px-5 py-5">
                 <div class="mb-2 flex items-center gap-2">
                   <h3 class="text-xs font-semibold uppercase tracking-wide text-muted dark:text-muted-dark">Answer</h3>
-                  <i id="ask-ai-stream-spinner" data-lucide="loader-2" class="h-3.5 w-3.5 animate-spin text-primary"></i>
+                  <i id="ask-ai-stream-spinner" class="ph ph-circle-notch text-[14px] animate-spin text-primary"></i>
                 </div>
                 <div id="ask-ai-live-answer" class="text-sm leading-relaxed text-ink dark:text-ink-dark [&>*+*]:mt-3 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5 [&_code]:rounded [&_code]:bg-surface [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs dark:[&_code]:bg-white/10 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-surface [&_pre]:p-3 [&_pre]:text-xs dark:[&_pre]:bg-white/5 [&_pre_code]:bg-transparent [&_pre_code]:p-0">
                   <span class="inline-flex items-center gap-1 py-1" aria-live="polite" aria-label="Thinking">
@@ -485,7 +485,6 @@
               </div>
             </div>
           `;
-          lucide.createIcons();
           container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
           liveAnswer = document.getElementById('ask-ai-live-answer');
 
@@ -541,7 +540,6 @@
                 streamEnded = true;
                 clearTimeout(slowHintTimer);
                 container.innerHTML = payload.html;
-                lucide.createIcons();
                 Alpine.initTree(container);
               } else if (payload.type === 'error') {
                 throw new Error('stream error');
@@ -580,15 +578,13 @@
             if (spinner) {
               const errorIcon = document.createElement('i');
               errorIcon.id = 'ask-ai-stream-spinner';
-              errorIcon.setAttribute('data-lucide', 'alert-triangle');
-              errorIcon.className = 'h-3.5 w-3.5 text-danger';
+              errorIcon.className = 'ph ph-warning text-[14px] text-danger';
               spinner.replaceWith(errorIcon);
             }
             const body = document.getElementById('ask-ai-live-card-body');
             if (body) {
               renderStreamErrorBanner(body, () => this.streamAnswer({ target: form }));
             }
-            lucide.createIcons();
             this.submitting = false;
             this.abortController = null;
             return;
@@ -619,7 +615,7 @@
     const banner = document.createElement('div');
     banner.className = 'mt-4 flex items-start gap-2.5 rounded-lg border border-danger/30 bg-danger/5 px-3.5 py-3 text-xs dark:border-danger/40 dark:bg-danger/10';
     banner.innerHTML = `
-      <i data-lucide="alert-triangle" class="mt-0.5 h-4 w-4 shrink-0 text-danger"></i>
+      <i class="ph ph-warning text-[16px] mt-0.5 shrink-0 text-danger"></i>
       <div class="min-w-0">
         <p class="font-medium text-danger">Connection interrupted</p>
         <p class="mt-0.5 text-danger/80 dark:text-danger/70">The response above may be incomplete. This can happen if your connection drops or the AI provider is momentarily unavailable.</p>
@@ -632,7 +628,6 @@
     retryBtn.addEventListener('click', onRetry);
     banner.appendChild(retryBtn);
     bodyEl.appendChild(banner);
-    lucide.createIcons();
   }
 </script>
 {% endblock %}

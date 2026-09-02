@@ -12,7 +12,7 @@
 
   <div class="mb-6 flex justify-end">
     <button @click="createOpen = true" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-      <i data-lucide="folder-plus" class="h-4 w-4"></i> New Collection
+      <i class="ph ph-folder-notch-plus text-[16px]"></i> New Collection
     </button>
   </div>
 
@@ -22,22 +22,22 @@
         <div class="rounded-xl border border-line bg-card p-5 shadow-soft transition-transform hover:-translate-y-0.5 dark:border-line-dark dark:bg-card-dark" x-data="{ menuOpen: false, renameOpen: false }">
           <div class="flex items-start justify-between">
             <a href="{% url 'collection_detail' collection.id %}" class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-              <i data-lucide="folder" class="h-5 w-5"></i>
+              <i class="ph ph-folder-notch text-[20px]"></i>
             </a>
             <div class="relative">
               <button @click="menuOpen = !menuOpen" class="rounded-lg p-1.5 text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5">
-                <i data-lucide="more-vertical" class="h-4 w-4"></i>
+                <i class="ph ph-dots-three-vertical text-[16px]"></i>
               </button>
               <div x-show="menuOpen" x-cloak @click.outside="menuOpen = false" class="absolute right-0 z-10 mt-1 w-36 rounded-lg border border-line bg-card p-1 shadow-lg dark:border-line-dark dark:bg-card-dark">
                 <button @click="renameOpen = true; menuOpen = false" class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-ink hover:bg-surface dark:text-ink-dark dark:hover:bg-white/5">
-                  <i data-lucide="pencil" class="h-3.5 w-3.5"></i> Rename
+                  <i class="ph ph-pencil-simple text-[14px]"></i> Rename
                 </button>
                 <form method="POST" action="{% url 'collections' %}" onsubmit="return confirm('Delete this collection? Documents inside are not deleted.');">
                   {% csrf_token %}
                   <input type="hidden" name="action" value="delete">
                   <input type="hidden" name="collection_id" value="{{ collection.id }}">
                   <button type="submit" class="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-danger hover:bg-danger/10 dark:text-danger-dark">
-                    <i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete
+                    <i class="ph ph-trash text-[14px]"></i> Delete
                   </button>
                 </form>
               </div>
@@ -58,7 +58,7 @@
                 <input type="hidden" name="action" value="rename">
                 <input type="hidden" name="collection_id" value="{{ collection.id }}">
                 <input type="text" name="name" value="{{ collection.name }}" required
-                  class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+                  class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
                 <div class="flex justify-end gap-2">
                   <button type="button" @click="renameOpen = false" class="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface dark:border-line-dark dark:text-ink-dark dark:hover:bg-white/5">Cancel</button>
                   <button type="submit" class="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-white hover:bg-primary-dark">Save</button>
@@ -70,7 +70,7 @@
       {% endfor %}
     </div>
   {% else %}
-    {% include "partials/_empty_state.html" with icon="folder-plus" title="No collections yet" message="Create a collection to organize documents you own or can access." %}
+    {% include "partials/_empty_state.html" with icon="folder-notch-plus" title="No collections yet" message="Create a collection to organize documents you own or can access." %}
   {% endif %}
 
   <div x-show="createOpen" x-cloak x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -80,9 +80,9 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="create">
         <input type="text" name="name" placeholder="Collection name" required
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
         <textarea name="description" placeholder="Description (optional)" rows="2"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark"></textarea>
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark"></textarea>
         <div class="flex justify-end gap-2">
           <button type="button" @click="createOpen = false" class="rounded-lg border border-line px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface dark:border-line-dark dark:text-ink-dark dark:hover:bg-white/5">Cancel</button>
           <button type="submit" class="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-white hover:bg-primary-dark">Create</button>

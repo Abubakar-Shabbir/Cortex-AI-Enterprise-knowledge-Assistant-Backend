@@ -1,0 +1,5 @@
+# Normalize all text files to LF - the working tree has been LF for a
+# while (no .gitattributes existed to enforce it), while some earlier
+# commits carry CRLF, which makes every touched file show as fully
+# rewritten in diffs even when only a few lines actually changed.
+* text=auto eol=lf

@@ -4,7 +4,7 @@
 
 {% block content %}
 
-{% include "partials/_page_header.html" with icon="quote" title="Citation Viewer" subtitle="Every source your AI Search answers have actually cited, most recent first." %}
+{% include "partials/_page_header.html" with icon="quotes" title="Citation Viewer" subtitle="Every source your AI Search answers have actually cited, most recent first." %}
 
 {% include "partials/_kb_tabs.html" with active="citations" %}
 
@@ -31,13 +31,13 @@
               {{ citation.document }} · chunk {{ citation.chunk_number }}
               {% if citation.topic_id %}
                 <a href="{% url 'entity_detail' citation.topic_id %}" class="ml-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline dark:text-primary-soft">
-                  <i data-lucide="compass" class="h-3 w-3"></i> View topic
+                  <i class="ph ph-compass text-[12px]"></i> View topic
                 </a>
               {% endif %}
             </td>
             <td class="px-5 py-3.5">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary-soft/40 px-2.5 py-1 text-xs font-medium text-primary dark:bg-primary/15 dark:text-primary-soft">
-                <i data-lucide="quote" class="h-3 w-3"></i> [{{ citation.citation_number }}]
+                <i class="ph ph-quotes text-[12px]"></i> [{{ citation.citation_number }}]
               </span>
             </td>
             <td class="whitespace-nowrap px-5 py-3.5 text-muted dark:text-muted-dark">{{ citation.created_at|timesince }} ago</td>
@@ -46,7 +46,7 @@
           <tr>
             <td colspan="4">
               {% url 'ask_ai' as ask_ai_url %}
-              {% include "partials/_empty_state.html" with icon="quote" title="No citations yet" message="Once an AI Search answer cites a source, it'll show up here." action_url=ask_ai_url action_label="Ask a question" %}
+              {% include "partials/_empty_state.html" with icon="quotes" title="No citations yet" message="Once an AI Search answer cites a source, it'll show up here." action_url=ask_ai_url action_label="Ask a question" %}
             </td>
           </tr>
         {% endfor %}

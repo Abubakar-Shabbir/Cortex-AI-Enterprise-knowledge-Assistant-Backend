@@ -111,15 +111,15 @@ TEAM_ENTITY_TYPE = "ORGANIZATION"
 # this dict (a custom LLM-provided one) falls back to
 # ENTITY_TYPE_FALLBACK_COLOR rather than erroring.
 ENTITY_TYPE_COLORS = {
-    "PERSON": "#8B1E2D",
-    "ORGANIZATION": "#2A78D6",
-    "LOCATION": "#1F7A4D",
-    "DATE": "#C77700",
-    "PRODUCT": "#4A3AA7",
+    "PERSON": "#FF385C",
+    "ORGANIZATION": "#0EA5E9",
+    "LOCATION": "#16A34A",
+    "DATE": "#D97706",
+    "PRODUCT": "#460479",
     "EVENT": "#D6336C",
-    "MISC": "#6D1B27",
+    "MISC": "#E00B41",
 }
-ENTITY_TYPE_FALLBACK_COLOR = "#8a7d7d"
+ENTITY_TYPE_FALLBACK_COLOR = "#6A6A6A"
 
 
 def get_entity_type_color(entity_type):

@@ -7,6 +7,6 @@
       text-muted hover:bg-surface hover:text-ink dark:text-muted-dark dark:hover:bg-white/5 dark:hover:text-ink-dark
     {% endif %}"
 >
-  <i data-lucide="{{ icon }}" class="h-4 w-4 shrink-0 {% if active == name %}text-primary dark:text-primary-soft{% endif %}"></i>
+  <i class="ph ph-{{ icon }} text-[16px] shrink-0 {% if active == name %}text-primary dark:text-primary-soft{% endif %}"></i>
   {{ label }}
 </a>

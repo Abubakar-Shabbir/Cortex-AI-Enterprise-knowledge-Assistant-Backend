@@ -30,7 +30,7 @@ for a fresh/empty selection.
 
   <button type="button" @click="open = true; search(true)"
     class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:hover:bg-primary/10">
-    <i data-lucide="file-check-2" class="h-4 w-4"></i>
+    <i class="ph ph-file-text text-[16px]"></i>
     <span x-text="Object.keys(selected).length ? Object.keys(selected).length + ' document' + (Object.keys(selected).length === 1 ? '' : 's') + ' selected' : '{{ trigger_label|default:"Select Documents" }}'"></span>
   </button>
 
@@ -42,13 +42,13 @@ for a fresh/empty selection.
       <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-4 dark:border-line-dark">
         <h3 class="text-sm font-semibold text-ink dark:text-ink-dark">Select Documents</h3>
         <button type="button" @click="open = false" class="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5">
-          <i data-lucide="x" class="h-4 w-4"></i>
+          <i class="ph ph-x text-[16px]"></i>
         </button>
       </div>
 
       <div class="border-b border-line px-5 py-3 dark:border-line-dark">
         <input type="text" x-model="query" @input.debounce.300ms="search(true)" placeholder="Search by title…"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
         <div class="mt-2 flex flex-wrap gap-1.5">
           <template x-for="opt in ['', 'pdf', 'docx', 'txt']" :key="opt">
             <button type="button" @click="fileType = opt; search(true)"
@@ -65,7 +65,7 @@ for a fresh/empty selection.
             <template x-for="item in Object.values(selected)" :key="item.id">
               <span class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary dark:text-primary-soft">
                 <span x-text="item.title" class="max-w-[160px] truncate"></span>
-                <button type="button" @click="toggle(item)"><i data-lucide="x" class="h-3 w-3"></i></button>
+                <button type="button" @click="toggle(item)"><i class="ph ph-x text-[12px]"></i></button>
               </span>
             </template>
           </div>
@@ -77,7 +77,7 @@ for a fresh/empty selection.
               class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-surface dark:hover:bg-white/5"
               :class="selected[doc.id] ? 'bg-primary/5' : ''">
               <span class="flex min-w-0 items-center gap-2">
-                <i data-lucide="check-square" class="h-4 w-4 shrink-0" :class="selected[doc.id] ? 'text-primary dark:text-primary-soft' : 'text-line dark:text-line-dark'"></i>
+                <i class="ph ph-check-square text-[16px] shrink-0" :class="selected[doc.id] ? 'text-primary dark:text-primary-soft' : 'text-line dark:text-line-dark'"></i>
                 <span class="truncate text-ink dark:text-ink-dark" x-text="doc.title"></span>
               </span>
               <span class="shrink-0 rounded-full bg-line px-2 py-0.5 text-[10px] font-semibold uppercase text-muted dark:bg-white/10 dark:text-muted-dark" x-text="doc.owner_badge"></span>

@@ -58,7 +58,7 @@
 >
 
   <div class="auth-pop-in mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft/40 text-primary dark:bg-primary/10 dark:text-primary-soft">
-    <i data-lucide="mail-check" class="h-5 w-5"></i>
+    <i class="ph ph-envelope-simple text-[20px]"></i>
   </div>
 
   <h1 class="text-xl font-bold tracking-tight text-ink dark:text-ink-dark">Verify your email</h1>
@@ -71,7 +71,7 @@
 
     {% if error %}
       <div role="alert" aria-live="polite" class="auth-error-banner flex items-start gap-2 rounded-lg border border-danger/20 bg-danger/10 px-3.5 py-3 text-sm text-danger dark:text-danger-dark">
-        <i data-lucide="alert-circle" class="mt-0.5 h-4 w-4 shrink-0"></i>
+        <i class="ph ph-warning-circle text-[16px] mt-0.5 shrink-0"></i>
         {{ error }}
       </div>
     {% endif %}
@@ -90,12 +90,12 @@
             @input="handleInput(i - 1, $event)"
             @keydown="handleKeydown(i - 1, $event)"
             :class="digits[i - 1] ? 'border-primary text-primary dark:text-primary-soft' : 'border-line dark:border-line-dark'"
-            class="h-14 w-full min-w-0 rounded-xl border bg-surface text-center text-2xl font-bold text-ink transition-all duration-150 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 dark:bg-white/5 dark:text-ink-dark"
+            class="h-14 w-full min-w-0 rounded-xl border bg-surface text-center text-2xl font-bold text-ink transition-all duration-150 focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:bg-white/5 dark:text-ink-dark"
           >
         </template>
       </div>
       <p class="mt-2 flex items-center gap-1.5 text-xs transition-opacity duration-300" :class="isComplete ? 'text-success dark:text-success-dark opacity-100' : 'opacity-0'">
-        <i data-lucide="check-circle-2" class="h-3.5 w-3.5"></i> Code entered — ready to verify
+        <i class="ph ph-check-circle text-[14px]"></i> Code entered — ready to verify
       </p>
     </div>
 
@@ -104,8 +104,8 @@
       :disabled="submitting || !isComplete"
       class="btn-sheen flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-semibold text-white shadow-softer transition-all duration-150 hover:bg-primary-dark hover:shadow-glow active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
     >
-      <i data-lucide="loader-2" class="h-4 w-4 animate-spin" x-show="submitting"></i>
-      <i data-lucide="shield-check" class="h-4 w-4" x-show="!submitting"></i>
+      <i class="ph ph-circle-notch text-[16px] animate-spin" x-show="submitting"></i>
+      <i class="ph ph-shield-check text-[16px]" x-show="!submitting"></i>
       <span x-text="submitting ? 'Verifying…' : 'Verify email'"></span>
     </button>
 
@@ -117,7 +117,7 @@
         :disabled="cooldown > 0 || resending"
         class="mt-1.5 inline-flex items-center gap-1.5 font-semibold text-primary transition-colors hover:underline disabled:text-muted disabled:no-underline dark:text-primary-soft dark:disabled:text-muted-dark"
       >
-        <i data-lucide="refresh-cw" class="h-3.5 w-3.5" :class="resending && 'animate-spin'"></i>
+        <i class="ph ph-arrows-clockwise text-[14px]" :class="resending && 'animate-spin'"></i>
         <span x-show="cooldown > 0" x-text="'Resend in ' + cooldown + 's'"></span>
         <span x-show="cooldown <= 0 && !resending">Resend code</span>
         <span x-show="resending">Sending…</span>

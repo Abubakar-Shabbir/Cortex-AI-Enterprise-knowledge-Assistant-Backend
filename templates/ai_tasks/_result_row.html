@@ -13,11 +13,11 @@ eight templates.
     <div class="flex items-center gap-2.5">
       {% if is_corpus %}
         <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
-          <i data-lucide="sparkles" class="h-4 w-4"></i>
+          <i class="ph ph-sparkle text-[16px]"></i>
         </div>
       {% else %}
         <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-          <i data-lucide="file-text" class="h-4 w-4"></i>
+          <i class="ph ph-file-text text-[16px]"></i>
         </div>
       {% endif %}
       <div>
@@ -53,7 +53,7 @@ eight templates.
         <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted dark:text-muted-dark">Findings</p>
         <ul class="space-y-1 text-sm text-ink dark:text-ink-dark">
           {% for finding in result.data.findings %}
-            <li class="flex items-start gap-1.5"><i data-lucide="check" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-success dark:text-success-dark"></i> {{ finding.point }}</li>
+            <li class="flex items-start gap-1.5"><i class="ph ph-check text-[14px] mt-0.5 shrink-0 text-success dark:text-success-dark"></i> {{ finding.point }}</li>
           {% endfor %}
         </ul>
       </div>
@@ -64,7 +64,7 @@ eight templates.
         <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted dark:text-muted-dark">Missing Requirements</p>
         <ul class="space-y-1 text-sm text-ink dark:text-ink-dark">
           {% for item in result.data.missing_requirements %}
-            <li class="flex items-start gap-1.5"><i data-lucide="x" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-danger dark:text-danger-dark"></i> {{ item }}</li>
+            <li class="flex items-start gap-1.5"><i class="ph ph-x text-[14px] mt-0.5 shrink-0 text-danger dark:text-danger-dark"></i> {{ item }}</li>
           {% endfor %}
         </ul>
       </div>
@@ -101,7 +101,7 @@ eight templates.
         <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-muted dark:text-muted-dark">Compliant Points</p>
         <ul class="space-y-1 text-sm text-ink dark:text-ink-dark">
           {% for p in result.data.compliant_points %}
-            <li class="flex items-start gap-1.5"><i data-lucide="check" class="mt-0.5 h-3.5 w-3.5 shrink-0 text-success dark:text-success-dark"></i> {{ p.point }}</li>
+            <li class="flex items-start gap-1.5"><i class="ph ph-check text-[14px] mt-0.5 shrink-0 text-success dark:text-success-dark"></i> {{ p.point }}</li>
           {% endfor %}
         </ul>
       </div>

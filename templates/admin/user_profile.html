@@ -7,7 +7,7 @@
 <div class="mb-4 flex items-center justify-between gap-3">
   <div>
     <a href="{% url 'admin_users' %}" class="mb-1 inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark">
-      <i data-lucide="arrow-left" class="h-3.5 w-3.5"></i> Back to Users
+      <i class="ph ph-arrow-left text-[14px]"></i> Back to Users
     </a>
     <h1 class="text-2xl font-bold tracking-tight text-ink dark:text-ink-dark">{{ profile_user.get_full_name|default:profile_user.username }}</h1>
     <p class="mt-1 text-sm text-muted dark:text-muted-dark">Admin view of this user's full profile, activity, and account health.</p>
@@ -16,21 +16,21 @@
 
 {% if not can_edit %}
   <div class="mb-4 flex items-center gap-2 rounded-xl border border-line bg-card px-3.5 py-2.5 text-xs text-muted shadow-soft dark:border-line-dark dark:bg-card-dark dark:text-muted-dark">
-    <i data-lucide="lock" class="h-3.5 w-3.5 shrink-0"></i>
+    <i class="ph ph-lock text-[14px] shrink-0"></i>
     This account outranks your role - you can view the profile below but can't edit it.
   </div>
 {% endif %}
 
 {# ============ Header ============ #}
 <div class="mb-4 overflow-hidden rounded-2xl border border-line bg-card shadow-soft dark:border-line-dark dark:bg-card-dark">
-  <div class="h-20 bg-gradient-to-r from-primary-light to-primary-dark sm:h-24"></div>
+  <div class="h-20 bg-primary sm:h-24"></div>
   <div class="px-5 pb-5 sm:px-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end">
       <div class="relative -mt-12 shrink-0 sm:-mt-14">
         {% if profile.avatar %}
           <img src="{{ profile.avatar.url }}" alt="" class="h-24 w-24 rounded-full object-cover ring-4 ring-card dark:ring-card-dark sm:h-28 sm:w-28">
         {% else %}
-          <div class="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary-light to-primary-dark text-2xl font-semibold text-white ring-4 ring-card dark:ring-card-dark sm:h-28 sm:w-28 sm:text-3xl">
+          <div class="flex h-24 w-24 items-center justify-center rounded-full bg-primary text-2xl font-semibold text-white ring-4 ring-card dark:ring-card-dark sm:h-28 sm:w-28 sm:text-3xl">
             {{ profile_user.first_name|first|default:profile_user.username|first|upper }}{{ profile_user.last_name|first|upper }}
           </div>
         {% endif %}
@@ -61,7 +61,7 @@
           <span>@{{ profile_user.username }}</span>
           <span>{{ profile_user.email|default:"—" }}</span>
           <span class="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 font-medium text-accent">
-            <i data-lucide="shield" class="h-3 w-3"></i> {{ assigned_role.role.name|default:"Unassigned" }}
+            <i class="ph ph-shield text-[12px]"></i> {{ assigned_role.role.name|default:"Unassigned" }}
           </span>
         </p>
       </div>
@@ -74,7 +74,7 @@
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
       <h2 class="flex items-center gap-2 text-sm font-semibold text-ink dark:text-ink-dark">
-        <i data-lucide="gauge" class="h-4 w-4 text-primary dark:text-primary-soft"></i> Profile Completion
+        <i class="ph ph-gauge text-[16px] text-primary dark:text-primary-soft"></i> Profile Completion
       </h2>
       <p class="mt-0.5 text-xs text-muted dark:text-muted-dark">{{ completion.filled }} of {{ completion.total }} fields complete</p>
     </div>
@@ -103,7 +103,7 @@
       {% csrf_token %}
       <div class="border-b border-line px-5 py-4 dark:border-line-dark">
         <h2 class="flex items-center gap-2 text-sm font-semibold text-ink dark:text-ink-dark">
-          <i data-lucide="briefcase" class="h-4 w-4 text-primary dark:text-primary-soft"></i> Professional & Work Details
+          <i class="ph ph-briefcase text-[16px] text-primary dark:text-primary-soft"></i> Professional & Work Details
         </h2>
       </div>
       <div class="space-y-4 px-5 py-4">
@@ -112,12 +112,12 @@
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Job Title</label>
             <input type="text" name="job_title" value="{{ profile.job_title }}" {% if not can_edit %}disabled{% endif %}
-              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
+              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
           </div>
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Department</label>
             <input type="text" name="department" value="{{ profile.department }}" {% if not can_edit %}disabled{% endif %}
-              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
+              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
           </div>
         </div>
 
@@ -125,12 +125,12 @@
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Team</label>
             <input type="text" name="team" value="{{ profile.team }}" {% if not can_edit %}disabled{% endif %}
-              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
+              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
           </div>
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Manager</label>
             <select name="manager_id" {% if not can_edit %}disabled{% endif %}
-              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
+              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
               <option value="">— None —</option>
               {% for m in manager_options %}
                 <option value="{{ m.id }}" {% if profile.manager_id == m.id %}selected{% endif %}>{{ m.get_full_name|default:m.username }}</option>
@@ -143,25 +143,25 @@
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Employee ID</label>
             <input type="text" name="employee_id" value="{{ profile.employee_id }}" {% if not can_edit %}disabled{% endif %}
-              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
+              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
           </div>
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Phone Number</label>
             <input type="text" name="phone" value="{{ profile.phone }}" {% if not can_edit %}disabled{% endif %}
-              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
+              class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
           </div>
         </div>
 
         <div>
           <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Location</label>
           <input type="text" name="location" value="{{ profile.location }}" {% if not can_edit %}disabled{% endif %}
-            class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
+            class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
         </div>
 
         <div>
           <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Professional Headline</label>
           <input type="text" name="headline" maxlength="150" value="{{ profile.headline }}" {% if not can_edit %}disabled{% endif %}
-            class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
+            class="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark disabled:cursor-not-allowed disabled:bg-line/40 disabled:text-muted dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:disabled:bg-white/5">
         </div>
 
         {# Skills/certs/links/timezone/language/visibility ride along unchanged on this same submit - hidden so admin edits never blank them out. #}
@@ -186,7 +186,7 @@
     <div class="rounded-xl border border-line bg-card shadow-soft dark:border-line-dark dark:bg-card-dark">
       <div class="border-b border-line px-5 py-4 dark:border-line-dark">
         <h2 class="flex items-center gap-2 text-sm font-semibold text-ink dark:text-ink-dark">
-          <i data-lucide="award" class="h-4 w-4 text-primary dark:text-primary-soft"></i> Skills & Certifications
+          <i class="ph ph-medal text-[16px] text-primary dark:text-primary-soft"></i> Skills & Certifications
         </h2>
       </div>
       <div class="space-y-4 px-5 py-4">
@@ -217,7 +217,7 @@
     <div class="rounded-xl border border-line bg-card shadow-soft dark:border-line-dark dark:bg-card-dark">
       <div class="border-b border-line px-5 py-4 dark:border-line-dark">
         <h2 class="flex items-center gap-2 text-sm font-semibold text-ink dark:text-ink-dark">
-          <i data-lucide="key-round" class="h-4 w-4 text-primary dark:text-primary-soft"></i> Permissions Summary
+          <i class="ph ph-key text-[16px] text-primary dark:text-primary-soft"></i> Permissions Summary
         </h2>
       </div>
       <div class="px-5 py-4">
@@ -302,7 +302,7 @@
     <div class="rounded-xl border border-line bg-card shadow-soft dark:border-line-dark dark:bg-card-dark">
       <div class="border-b border-line px-5 py-4 dark:border-line-dark">
         <h2 class="flex items-center gap-2 text-sm font-semibold text-ink dark:text-ink-dark">
-          <i data-lucide="monitor-smartphone" class="h-4 w-4 text-primary dark:text-primary-soft"></i> Device & Sessions
+          <i class="ph ph-device-mobile text-[16px] text-primary dark:text-primary-soft"></i> Device & Sessions
         </h2>
       </div>
       <div class="space-y-4 px-5 py-4">
@@ -325,13 +325,13 @@
             </div>
             {% if not can_view_location %}
               <p class="mt-3 flex items-center gap-1.5 text-xs text-muted dark:text-muted-dark">
-                <i data-lucide="lock" class="h-3 w-3 shrink-0"></i> IP/location hidden - requires the "View IP & location data" permission.
+                <i class="ph ph-lock text-[12px] shrink-0"></i> IP/location hidden - requires the "View IP & location data" permission.
               </p>
             {% endif %}
           </div>
         {% else %}
           <p class="flex items-center gap-1.5 text-sm text-muted dark:text-muted-dark">
-            <i data-lucide="lock" class="h-3.5 w-3.5 shrink-0"></i> Requires the "View all activity logs" permission.
+            <i class="ph ph-lock text-[14px] shrink-0"></i> Requires the "View all activity logs" permission.
           </p>
         {% endif %}
       </div>

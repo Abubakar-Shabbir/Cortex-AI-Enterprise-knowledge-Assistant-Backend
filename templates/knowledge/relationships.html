@@ -12,7 +12,7 @@
 
 <div class="mb-4 rounded-xl border border-line bg-card p-4 shadow-soft dark:border-line-dark dark:bg-card-dark">
   <form method="GET" class="flex flex-wrap items-center gap-3">
-    <select name="type" onchange="this.form.submit()" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
+    <select name="type" onchange="this.form.submit()" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
       <option value="">All relationship types</option>
       {% for rtype in relation_types %}
         <option value="{{ rtype }}" {% if selected_type == rtype %}selected{% endif %}>{{ rtype|lower }}</option>
@@ -46,7 +46,7 @@
             </td>
             <td class="px-5 py-3.5">
               <span class="inline-flex items-center gap-1.5 rounded-full bg-primary-soft/40 px-2.5 py-1 text-xs font-medium text-primary dark:bg-primary/15 dark:text-primary-soft">
-                <i data-lucide="arrow-right" class="h-3 w-3"></i> {{ rel.relation_type|lower }}
+                <i class="ph ph-arrow-right text-[12px]"></i> {{ rel.relation_type|lower }}
               </span>
             </td>
             <td class="px-5 py-3.5">

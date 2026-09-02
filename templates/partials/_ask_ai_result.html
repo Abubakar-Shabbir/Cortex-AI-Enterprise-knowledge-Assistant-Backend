@@ -4,7 +4,7 @@
     {% if result.from_history %}
       <div class="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface px-5 py-2.5 dark:border-line-dark dark:bg-white/5">
         <span class="flex items-center gap-1.5 text-xs font-medium text-muted dark:text-muted-dark">
-          <i data-lucide="history" class="h-3.5 w-3.5"></i> Viewing a past answer — no new search was run.
+          <i class="ph ph-clock-counter-clockwise text-[14px]"></i> Viewing a past answer — no new search was run.
         </span>
         <button type="button" @click="useQuestion('{{ result.question|escapejs }}')" class="text-xs font-semibold text-primary hover:underline dark:text-primary-soft">Ask again</button>
       </div>
@@ -12,7 +12,7 @@
 
     <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-5 py-4 dark:border-line-dark">
       <div class="flex items-center gap-2 text-xs text-muted dark:text-muted-dark">
-        <i data-lucide="gauge" class="h-3.5 w-3.5"></i> Confidence
+        <i class="ph ph-gauge text-[14px]"></i> Confidence
         <span
           class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold
             {% if result.confidence >= 70 %} bg-success/10 text-success dark:text-success-dark
@@ -21,24 +21,24 @@
         >{{ result.confidence }}%</span>
       </div>
       <div class="flex items-center gap-2 text-xs text-muted dark:text-muted-dark">
-        <i data-lucide="timer" class="h-3.5 w-3.5"></i> Response Time
+        <i class="ph ph-timer text-[14px]"></i> Response Time
         <span class="font-semibold text-ink dark:text-ink-dark">{{ result.response_time_ms }} ms</span>
       </div>
       <div class="flex items-center gap-2 text-xs text-muted dark:text-muted-dark">
-        <i data-lucide="layers" class="h-3.5 w-3.5"></i> Retrieved Chunks
+        <i class="ph ph-stack text-[14px]"></i> Retrieved Chunks
         <span class="font-semibold text-ink dark:text-ink-dark">{{ result.sources|length }}</span>
       </div>
       <div class="flex items-center gap-2 text-xs text-muted dark:text-muted-dark">
-        <i data-lucide="quote" class="h-3.5 w-3.5"></i> Citations
+        <i class="ph ph-quotes text-[14px]"></i> Citations
         <span class="font-semibold text-ink dark:text-ink-dark">{{ result.citations|length }}</span>
       </div>
       <div class="flex items-center gap-2 text-xs text-muted dark:text-muted-dark">
-        <i data-lucide="git-merge" class="h-3.5 w-3.5"></i> Search Method
+        <i class="ph ph-git-merge text-[14px]"></i> Search Method
         <span class="font-semibold text-ink dark:text-ink-dark">{{ result.search_method }}</span>
       </div>
       {% if result.llm_provider %}
         <div class="flex items-center gap-2 text-xs text-muted dark:text-muted-dark" title="{{ result.llm_model }}">
-          <i data-lucide="cpu" class="h-3.5 w-3.5"></i> Answered by
+          <i class="ph ph-cpu text-[14px]"></i> Answered by
           <span class="font-semibold capitalize text-ink dark:text-ink-dark">{{ result.llm_provider }}</span>
           <span class="font-mono text-[11px] text-muted dark:text-muted-dark">{{ result.llm_model }}</span>
           {% if result.llm_fallback_used %}
@@ -51,7 +51,7 @@
     {% if applied_filter_labels %}
       <div class="flex flex-wrap items-center gap-2 border-b border-line bg-primary/5 px-5 py-2.5 dark:border-line-dark dark:bg-primary/10">
         <span class="flex items-center gap-1.5 text-xs font-semibold text-primary dark:text-primary-soft">
-          <i data-lucide="filter" class="h-3.5 w-3.5"></i> Filtered by:
+          <i class="ph ph-funnel text-[14px]"></i> Filtered by:
         </span>
         {% for label in applied_filter_labels %}
           <span class="rounded-full bg-card px-2.5 py-0.5 text-[11px] font-medium text-ink dark:bg-card-dark dark:text-ink-dark">{{ label }}</span>
@@ -68,8 +68,8 @@
             @click="copyAnswer('{{ result.answer|escapejs }}')"
             class="flex items-center gap-1.5 text-xs font-medium text-muted transition-colors hover:text-primary dark:text-muted-dark dark:hover:text-primary-soft"
           >
-            <i data-lucide="check" class="h-3.5 w-3.5 text-success dark:text-success-dark" x-show="copied"></i>
-            <i data-lucide="copy" class="h-3.5 w-3.5" x-show="!copied"></i>
+            <i class="ph ph-check text-[14px] text-success dark:text-success-dark" x-show="copied"></i>
+            <i class="ph ph-copy text-[14px]" x-show="!copied"></i>
             <span x-text="copied ? 'Copied' : 'Copy'"></span>
           </button>
         {% endif %}
@@ -78,7 +78,7 @@
       {% if result.is_service_unavailable %}
         <div class="flex items-start gap-3 rounded-lg border border-dashed border-danger/30 bg-danger/5 p-4 dark:border-danger-dark/30 dark:bg-danger/10">
           <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-danger/10 text-danger dark:text-danger-dark">
-            <i data-lucide="server-crash" class="h-4 w-4"></i>
+            <i class="ph ph-hard-drives text-[16px]"></i>
           </div>
           <div>
             <p class="text-sm font-medium text-ink dark:text-ink-dark">AI service temporarily unavailable</p>
@@ -91,7 +91,7 @@
       {% elif result.is_not_found %}
         <div class="flex items-start gap-3 rounded-lg border border-dashed border-line bg-surface p-4 dark:border-line-dark dark:bg-white/5">
           <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
-            <i data-lucide="search-x" class="h-4 w-4"></i>
+            <i class="ph ph-magnifying-glass text-[16px]"></i>
           </div>
           <div>
             <p class="text-sm font-medium text-ink dark:text-ink-dark">No answer found in your documents</p>
@@ -141,7 +141,7 @@
             <div data-source-number="{{ forloop.counter }}" class="rounded-lg border border-line bg-surface p-3.5 transition-shadow dark:border-line-dark dark:bg-white/5">
               <div class="mb-1.5 flex items-center justify-between gap-2">
                 <span class="flex min-w-0 items-center gap-1.5 truncate text-sm font-medium text-ink dark:text-ink-dark">
-                  <i data-lucide="file-text" class="h-3.5 w-3.5 shrink-0 text-primary dark:text-primary-soft"></i>
+                  <i class="ph ph-file-text text-[14px] shrink-0 text-primary dark:text-primary-soft"></i>
                   <span class="truncate">{{ source.document }}</span> <span class="shrink-0 text-muted dark:text-muted-dark">· chunk {{ source.chunk_number }}</span>
                 </span>
                 <span class="flex shrink-0 items-center gap-1.5">
@@ -175,7 +175,7 @@
 {% else %}
   <div class="rounded-xl border border-dashed border-line bg-card p-10 text-center dark:border-line-dark dark:bg-card-dark">
     <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-      <i data-lucide="message-square-text" class="h-5 w-5"></i>
+      <i class="ph ph-chat-text text-[20px]"></i>
     </div>
     <p class="text-sm font-medium text-ink dark:text-ink-dark">Ask your first question</p>
     <p class="mx-auto mt-1 max-w-sm text-xs text-muted dark:text-muted-dark">Every answer cites the exact document and chunk it came from — nothing is answered from outside your uploaded content.</p>

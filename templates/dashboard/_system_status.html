@@ -23,7 +23,7 @@ health checks were added here.
   <div class="space-y-1.5 text-sm">
 
     <div class="flex items-center justify-between">
-      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i data-lucide="database" class="h-4 w-4"></i> PostgreSQL</span>
+      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i class="ph ph-database text-[16px]"></i> PostgreSQL</span>
       <span class="flex items-center gap-1.5 font-medium {% if system_status.db_online %}text-success dark:text-success-dark{% else %}text-danger dark:text-danger-dark{% endif %}">
         <span class="h-1.5 w-1.5 rounded-full {% if system_status.db_online %}bg-success dark:bg-success-dark{% else %}bg-danger dark:bg-danger-dark{% endif %}"></span>
         {% if system_status.db_online %}Healthy{% else %}Offline{% endif %}
@@ -31,7 +31,7 @@ health checks were added here.
     </div>
 
     <div class="flex items-center justify-between">
-      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i data-lucide="boxes" class="h-4 w-4"></i> pgvector</span>
+      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i class="ph ph-stack text-[16px]"></i> pgvector</span>
       <span class="flex items-center gap-1.5 font-medium {% if system_status.pgvector_enabled %}text-success dark:text-success-dark{% else %}text-danger dark:text-danger-dark{% endif %}">
         <span class="h-1.5 w-1.5 rounded-full {% if system_status.pgvector_enabled %}bg-success dark:bg-success-dark{% else %}bg-danger dark:bg-danger-dark{% endif %}"></span>
         {% if system_status.pgvector_enabled %}Healthy{% else %}Not enabled{% endif %}
@@ -39,14 +39,14 @@ health checks were added here.
     </div>
 
     <div class="flex items-center justify-between">
-      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i data-lucide="cpu" class="h-4 w-4"></i> Embedding Model</span>
+      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i class="ph ph-cpu text-[16px]"></i> Embedding Model</span>
       <span class="flex items-center gap-1.5 font-medium text-success dark:text-success-dark" title="{{ system_status.embedding_model }}">
         <span class="h-1.5 w-1.5 rounded-full bg-success dark:bg-success-dark"></span> Healthy
       </span>
     </div>
 
     <div class="flex items-center justify-between">
-      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i data-lucide="bot" class="h-4 w-4"></i> LLM ({% if system_status.llm_provider == "openrouter" %}OpenRouter{% else %}Gemini{% endif %})</span>
+      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i class="ph ph-robot text-[16px]"></i> LLM ({% if system_status.llm_provider == "openrouter" %}OpenRouter{% else %}Gemini{% endif %})</span>
       <span class="flex items-center gap-1.5 font-medium {% if system_status.llm_configured %}text-success dark:text-success-dark{% else %}text-warning dark:text-warning-dark{% endif %}" title="{{ system_status.llm_model }}">
         <span class="h-1.5 w-1.5 rounded-full {% if system_status.llm_configured %}bg-success dark:bg-success-dark{% else %}bg-warning dark:bg-warning-dark{% endif %}"></span>
         {% if system_status.llm_configured %}Healthy{% else %}Not configured{% endif %}
@@ -54,7 +54,7 @@ health checks were added here.
     </div>
 
     <div class="flex items-center justify-between">
-      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i data-lucide="plug-zap" class="h-4 w-4"></i> API Services</span>
+      <span class="flex items-center gap-2 text-muted dark:text-muted-dark"><i class="ph ph-plugs text-[16px]"></i> API Services</span>
       <span class="flex items-center gap-1.5 font-medium {% if system_status.db_online and system_status.llm_configured %}text-success dark:text-success-dark{% else %}text-warning dark:text-warning-dark{% endif %}">
         <span class="h-1.5 w-1.5 rounded-full {% if system_status.db_online and system_status.llm_configured %}bg-success dark:bg-success-dark{% else %}bg-warning dark:bg-warning-dark{% endif %}"></span>
         {% if system_status.db_online and system_status.llm_configured %}Healthy{% else %}Degraded{% endif %}

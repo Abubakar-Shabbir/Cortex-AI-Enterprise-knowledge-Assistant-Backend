@@ -13,7 +13,7 @@
 
   <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
     {% include "partials/_stat_card.html" with icon="file-text" label="Total Documents" value=total_documents numeric=True %}
-    {% include "partials/_stat_card.html" with icon="check-circle-2" label="Fully Ready" value=embedded_count numeric=True %}
+    {% include "partials/_stat_card.html" with icon="check-circle" label="Fully Ready" value=embedded_count numeric=True %}
     {% include "partials/_stat_card.html" with icon="hard-drive" label="Storage Used" value=total_storage %}
     {% include "partials/_stat_card.html" with icon="archive" label="Archived" value=archived_count numeric=True %}
     {% include "partials/_stat_card.html" with icon="star" label="Favorites" value=favorites_count numeric=True %}
@@ -22,16 +22,16 @@
   <div x-data="{ uploadOpen: false }" class="mb-6 rounded-xl border border-line bg-card shadow-soft dark:border-line-dark dark:bg-card-dark">
     <button @click="uploadOpen = !uploadOpen" class="flex w-full items-center justify-between px-5 py-4">
       <span class="flex items-center gap-2.5 text-sm font-semibold text-ink dark:text-ink-dark">
-        <i data-lucide="upload-cloud" class="h-4 w-4 text-primary dark:text-primary-soft"></i> Upload Document
+        <i class="ph ph-cloud-arrow-up text-[16px] text-primary dark:text-primary-soft"></i> Upload Document
       </span>
-      <i data-lucide="chevron-down" class="h-4 w-4 text-muted transition-transform dark:text-muted-dark" :class="uploadOpen && 'rotate-180'"></i>
+      <i class="ph ph-caret-down text-[16px] text-muted transition-transform dark:text-muted-dark" :class="uploadOpen && 'rotate-180'"></i>
     </button>
 
     <div x-show="uploadOpen" x-cloak x-transition x-init="uploadOpen = {% if upload_error %}true{% else %}false{% endif %}" class="border-t border-line px-5 py-5 dark:border-line-dark">
 
       {% if upload_error %}
         <div class="mb-4 flex items-start gap-2.5 rounded-lg border border-danger/20 bg-danger/10 px-3.5 py-3 text-sm text-danger dark:text-danger-dark">
-          <i data-lucide="alert-circle" class="mt-0.5 h-4 w-4 shrink-0"></i>
+          <i class="ph ph-warning-circle text-[16px] mt-0.5 shrink-0"></i>
           {{ upload_error }}
         </div>
       {% endif %}
@@ -51,7 +51,7 @@
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Add to Collection (optional)</label>
-            <select name="collection_id" class="w-full rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
+            <select name="collection_id" class="w-full rounded-lg border border-line bg-surface px-3.5 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
               <option value="">No collection</option>
               {% for collection in collections %}
                 <option value="{{ collection.id }}">{{ collection.name }}</option>
@@ -74,7 +74,7 @@
 
         <div>
           <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-            <i data-lucide="upload" class="h-4 w-4"></i> Upload
+            <i class="ph ph-upload-simple text-[16px]"></i> Upload
           </button>
         </div>
       </form>
@@ -86,12 +86,12 @@
       <div class="lg:col-span-2">
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Search</label>
         <input type="text" name="q" value="{{ filters.q }}" placeholder="Title…"
-          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
       </div>
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Status</label>
-        <select name="status" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="status" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           <option value="pending" {% if filters.status == "pending" %}selected{% endif %}>Pending</option>
           <option value="processing" {% if filters.status == "processing" %}selected{% endif %}>Processing</option>
@@ -102,7 +102,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Type</label>
-        <select name="file_type" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="file_type" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           <option value="pdf" {% if filters.file_type == "pdf" %}selected{% endif %}>PDF</option>
           <option value="docx" {% if filters.file_type == "docx" %}selected{% endif %}>DOCX</option>
@@ -112,7 +112,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Category</label>
-        <select name="category" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="category" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           {% for cat in categories %}
             <option value="{{ cat.id }}" {% if filters.category == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
@@ -122,7 +122,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Tag</label>
-        <select name="tag" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="tag" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="">Any</option>
           {% for tag in tags %}
             <option value="{{ tag.id }}" {% if filters.tag == tag.id|stringformat:"s" %}selected{% endif %}>{{ tag.name }}</option>
@@ -132,7 +132,7 @@
 
       <div>
         <label class="mb-1 block text-xs font-medium text-muted dark:text-muted-dark">Sort</label>
-        <select name="sort" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+        <select name="sort" class="w-full rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           <option value="newest" {% if filters.sort == "newest" or not filters.sort %}selected{% endif %}>Newest first</option>
           <option value="oldest" {% if filters.sort == "oldest" %}selected{% endif %}>Oldest first</option>
           <option value="title" {% if filters.sort == "title" %}selected{% endif %}>Title A–Z</option>
@@ -149,7 +149,7 @@
 
       <div class="flex items-end gap-2 lg:col-span-2">
         <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark">
-          <i data-lucide="filter" class="h-4 w-4"></i> Apply
+          <i class="ph ph-funnel text-[16px]"></i> Apply
         </button>
         <a href="{% url 'documents' %}" class="inline-flex items-center gap-2 rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-surface dark:border-line-dark dark:text-ink-dark dark:hover:bg-white/5">
           Reset
@@ -162,13 +162,13 @@
     class="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 dark:border-primary/40 dark:bg-primary/10">
     <span class="text-sm font-semibold text-ink dark:text-ink-dark" x-text="Object.keys(selected).length + ' selected'"></span>
     <button type="button" @click="bulkAction('favorite')" class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface dark:border-line-dark dark:bg-card-dark dark:text-ink-dark dark:hover:bg-white/5">
-      <i data-lucide="star" class="h-3.5 w-3.5"></i> Favorite
+      <i class="ph ph-star text-[14px]"></i> Favorite
     </button>
     <button type="button" @click="bulkAction('archive')" class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface dark:border-line-dark dark:bg-card-dark dark:text-ink-dark dark:hover:bg-white/5">
-      <i data-lucide="archive" class="h-3.5 w-3.5"></i> Archive
+      <i class="ph ph-archive text-[14px]"></i> Archive
     </button>
     <button type="button" @click="bulkAction('unarchive')" class="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface dark:border-line-dark dark:bg-card-dark dark:text-ink-dark dark:hover:bg-white/5">
-      <i data-lucide="archive-restore" class="h-3.5 w-3.5"></i> Unarchive
+      <i class="ph ph-archive-tray text-[14px]"></i> Unarchive
     </button>
     {% if collections %}
       <select @change="if ($event.target.value) { bulkAddToCollection($event.target.value); $event.target.value = ''; }"
@@ -180,7 +180,7 @@
       </select>
     {% endif %}
     <button type="button" @click="bulkAction('delete')" class="inline-flex items-center gap-1.5 rounded-lg border border-danger/30 bg-card px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger/10 dark:border-danger/40 dark:bg-card-dark dark:text-danger-dark">
-      <i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Delete
+      <i class="ph ph-trash text-[14px]"></i> Delete
     </button>
     <button type="button" @click="selected = {}" class="ml-auto text-xs font-medium text-muted hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark">Clear selection</button>
   </div>
@@ -217,10 +217,10 @@
               <td class="px-5 py-3.5">
                 <div class="flex items-center gap-2.5">
                   <button type="button" @click="toggleFavorite()" title="Favorite" class="shrink-0">
-                    <i data-lucide="star" class="h-4 w-4 transition-colors" :class="favorite ? 'fill-warning text-warning' : 'text-muted dark:text-muted-dark'"></i>
+                    <i class="ph ph-star text-[16px] transition-colors" :class="favorite ? 'fill-warning text-warning' : 'text-muted dark:text-muted-dark'"></i>
                   </button>
                   <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-                    <i data-lucide="file-text" class="h-4 w-4"></i>
+                    <i class="ph ph-file-text text-[16px]"></i>
                   </div>
                   <button type="button" @click="openPreview('{% url 'document_preview' item.doc.id %}', '{{ item.doc.title|escapejs }}')" class="max-w-[220px] truncate text-left font-medium text-ink hover:text-primary dark:text-ink-dark dark:hover:text-primary-soft">{{ item.doc.title }}</button>
                 </div>
@@ -235,7 +235,7 @@
                     @click="embed()"
                     class="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/15 dark:text-primary-soft"
                   >
-                    <i data-lucide="zap" class="h-3.5 w-3.5"></i> Embed
+                    <i class="ph ph-lightning text-[14px]"></i> Embed
                   </button>
                 </template>
 
@@ -274,7 +274,7 @@
 
                 <template x-if="status === 'Archived'">
                   <span class="inline-flex items-center gap-1.5 rounded-full bg-line px-2.5 py-1 text-xs font-medium text-muted dark:bg-white/10 dark:text-muted-dark">
-                    <i data-lucide="archive" class="h-3 w-3"></i> Archived
+                    <i class="ph ph-archive text-[12px]"></i> Archived
                   </span>
                 </template>
 
@@ -283,43 +283,43 @@
               <td class="px-5 py-3.5">
                 <div class="flex items-center justify-end gap-1" x-data="{ confirmOpen: false }">
                   <a href="{% url 'document_download' item.doc.id %}" target="_blank" title="Open" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="external-link" class="h-4 w-4"></i>
+                    <i class="ph ph-arrow-square-out text-[16px]"></i>
                   </a>
                   <a href="{% url 'document_download' item.doc.id %}?download=1" title="Download" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="download" class="h-4 w-4"></i>
+                    <i class="ph ph-download-simple text-[16px]"></i>
                   </a>
                   {% if "pages.knowledge_base" in user_permissions %}
                     <a href="{% url 'document_knowledge' item.doc.id %}" title="Knowledge" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                      <i data-lucide="network" class="h-4 w-4"></i>
+                      <i class="ph ph-share-network text-[16px]"></i>
                     </a>
                   {% endif %}
                   <button type="button" @click="toggleArchive('{% url 'document_archive_toggle' item.doc.id %}')" title="Archive / Unarchive" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="archive" class="h-4 w-4"></i>
+                    <i class="ph ph-archive text-[16px]"></i>
                   </button>
                   {% if can_share %}
                     <button type="button" @click="openShare({{ item.doc.id }}, '{% url 'document_share' item.doc.id %}', '{{ item.doc.title|escapejs }}')" title="Share" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                      <i data-lucide="share-2" class="h-4 w-4"></i>
+                      <i class="ph ph-share-network text-[16px]"></i>
                     </button>
                   {% endif %}
                   <button type="button" @click="openVersions({{ item.doc.id }}, '{% url 'document_versions' item.doc.id %}', '{% url 'document_version_upload' item.doc.id %}', '{{ item.doc.title|escapejs }}')" title="Version History" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="history" class="h-4 w-4"></i>
+                    <i class="ph ph-clock-counter-clockwise text-[16px]"></i>
                   </button>
                   {% if can_manage_org_library %}
                     <form method="POST" action="{% url 'org_library_toggle' item.doc.id %}">
                       {% csrf_token %}
                       <button type="submit" title="{% if item.doc.is_org_library %}Remove from{% else %}Add to{% endif %} Organization Library" class="rounded-lg p-2 transition-colors hover:bg-line dark:hover:bg-white/10 {% if item.doc.is_org_library %}text-primary dark:text-primary-soft{% else %}text-muted hover:text-ink dark:text-muted-dark dark:hover:text-ink-dark{% endif %}">
-                        <i data-lucide="library" class="h-4 w-4"></i>
+                        <i class="ph ph-books text-[16px]"></i>
                       </button>
                     </form>
                   {% endif %}
                   <button @click="confirmOpen = true" title="Delete" class="rounded-lg p-2 text-muted transition-colors hover:bg-danger/10 hover:text-danger dark:text-muted-dark dark:hover:text-danger-dark">
-                    <i data-lucide="trash-2" class="h-4 w-4"></i>
+                    <i class="ph ph-trash text-[16px]"></i>
                   </button>
 
                   <div x-show="confirmOpen" x-cloak x-transition.opacity class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
                     <div @click.outside="confirmOpen = false" class="w-full max-w-sm rounded-xl border border-line bg-card p-5 shadow-soft dark:border-line-dark dark:bg-card-dark">
                       <div class="mb-1 flex items-center gap-2.5 text-danger dark:text-danger-dark">
-                        <i data-lucide="alert-triangle" class="h-5 w-5"></i>
+                        <i class="ph ph-warning text-[20px]"></i>
                         <h3 class="text-sm font-semibold">Delete document</h3>
                       </div>
                       <p class="mb-4 text-sm text-muted dark:text-muted-dark">
@@ -371,21 +371,21 @@
       <div class="mb-4 flex items-start justify-between gap-3">
         <h3 class="text-sm font-semibold text-ink dark:text-ink-dark">Share "<span x-text="share.title"></span>"</h3>
         <button type="button" @click="share.open = false" class="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5">
-          <i data-lucide="x" class="h-4 w-4"></i>
+          <i class="ph ph-x text-[16px]"></i>
         </button>
       </div>
 
       <form @submit.prevent="addShare()" class="mb-4 flex flex-col gap-2">
         <div class="flex gap-2">
-          <select x-model="share.targetType" class="rounded-lg border border-line bg-transparent px-2.5 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+          <select x-model="share.targetType" class="rounded-lg border border-line bg-transparent px-2.5 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
             <option value="user">User</option>
             <option value="role">Role</option>
           </select>
           <template x-if="share.targetType === 'user'">
-            <input type="text" x-model="share.targetValue" placeholder="Username or email" class="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+            <input type="text" x-model="share.targetValue" placeholder="Username or email" class="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
           </template>
           <template x-if="share.targetType === 'role'">
-            <select x-model="share.targetValue" class="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-primary focus:outline-none dark:border-line-dark dark:text-ink-dark">
+            <select x-model="share.targetValue" class="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm text-ink focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:text-ink-dark">
               <option value="">Select a role…</option>
               {% for role in assignable_roles %}
                 <option value="{{ role.id }}">{{ role.name }}</option>
@@ -395,7 +395,7 @@
         </div>
         <p x-show="share.error" x-text="share.error" class="text-xs text-danger dark:text-danger-dark"></p>
         <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
-          <i data-lucide="user-plus" class="h-4 w-4"></i> Share
+          <i class="ph ph-user-plus text-[16px]"></i> Share
         </button>
       </form>
 
@@ -420,7 +420,7 @@
       <div class="mb-4 flex items-start justify-between gap-3">
         <h3 class="text-sm font-semibold text-ink dark:text-ink-dark">Version history — "<span x-text="versions.title"></span>"</h3>
         <button type="button" @click="versions.open = false" class="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5">
-          <i data-lucide="x" class="h-4 w-4"></i>
+          <i class="ph ph-x text-[16px]"></i>
         </button>
       </div>
 
@@ -430,7 +430,7 @@
         <input type="file" name="file" accept=".pdf,.docx,.txt" required
           class="w-full rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-white dark:border-line-dark dark:bg-white/5 dark:text-ink-dark">
         <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
-          <i data-lucide="upload" class="h-4 w-4"></i> Upload New Version
+          <i class="ph ph-upload-simple text-[16px]"></i> Upload New Version
         </button>
         <p class="text-xs text-muted dark:text-muted-dark">Replaces the current version and re-processes it; the old version stays listed below.</p>
       </form>
@@ -462,7 +462,7 @@
       <div class="mb-3 flex items-start justify-between gap-3">
         <h3 class="text-sm font-semibold text-ink dark:text-ink-dark" x-text="preview.title"></h3>
         <button type="button" @click="preview.open = false" class="flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-surface dark:text-muted-dark dark:hover:bg-white/5">
-          <i data-lucide="x" class="h-4 w-4"></i>
+          <i class="ph ph-x text-[16px]"></i>
         </button>
       </div>
       <template x-if="preview.loading">

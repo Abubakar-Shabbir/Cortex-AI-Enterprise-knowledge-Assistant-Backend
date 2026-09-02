@@ -10,7 +10,7 @@ every existing call site keeps its exact prior look untouched.
   <div class="flex items-center justify-between">
     <span class="text-xs font-medium text-muted dark:text-muted-dark">{{ label }}</span>
     <div class="flex h-9 w-9 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105 {{ icon_bg|default:"bg-primary-soft/50 dark:bg-primary/15" }} {{ icon_color|default:"text-primary dark:text-primary-soft" }}">
-      <i data-lucide="{{ icon }}" class="h-4 w-4"></i>
+      <i class="ph ph-{{ icon }} text-[16px]"></i>
     </div>
   </div>
   {% if numeric %}

@@ -93,7 +93,7 @@ def get_dashboard_insights(user):
     if day_counts:
         busiest_day, count = day_counts.most_common(1)[0]
         insights.append({
-            "icon": "calendar-days",
+            "icon": "calendar-dots",
             "title": f"{busiest_day} is your busiest day",
             "description": f"{count} question{'s' if count != 1 else ''} asked on {busiest_day}s in the last 30 days.",
         })
@@ -107,7 +107,7 @@ def get_dashboard_insights(user):
     )
     if top_method:
         insights.append({
-            "icon": "route",
+            "icon": "signpost",
             "title": top_method["search_method"],
             "description": "Your most frequently used retrieval method.",
         })
@@ -115,7 +115,7 @@ def get_dashboard_insights(user):
     processing = documents.filter(chunk_count=0).count()
     if processing:
         recommendations.append({
-            "icon": "loader-circle",
+            "icon": "circle-notch",
             "title": f"{processing} document{'s' if processing != 1 else ''} still processing",
             "description": "Chunking and embedding run in the background - check back shortly.",
             "action_url_name": "documents",
@@ -124,7 +124,7 @@ def get_dashboard_insights(user):
 
     if documents.count() == 0:
         recommendations.append({
-            "icon": "upload-cloud",
+            "icon": "cloud-arrow-up",
             "title": "Upload your first document",
             "description": "Once you upload a document, you can start asking questions about it.",
             "action_url_name": "documents",
@@ -132,7 +132,7 @@ def get_dashboard_insights(user):
         })
     elif logs.count() == 0:
         recommendations.append({
-            "icon": "message-square",
+            "icon": "chat-circle",
             "title": "Ask your first question",
             "description": "Your documents are ready - try asking the assistant something about them.",
             "action_url_name": "ask_ai",
@@ -149,7 +149,7 @@ def get_dashboard_insights(user):
     top_topic = top_topics.object_list[0] if top_topics.object_list else None
     if top_topic:
         recommendations.append({
-            "icon": "sparkles",
+            "icon": "sparkle",
             "title": f'Try asking about "{top_topic["display_name"]}"',
             "description": f"It's the most frequently mentioned topic across everything you can access ({top_topic['mention_count']} mentions).",
             "action_url_name": "ask_ai",
@@ -253,10 +253,10 @@ def get_analytics_data(user, days=14, knowledge_overview=None):
     # its confidence pill by (>=70 success, >=40 warning, else danger),
     # just split into 4 readable bands here instead of 3.
     confidence_buckets = [
-        ("Excellent (80-100%)", 80, 101, "#1F7A4D"),
-        ("Good (60-79%)", 60, 80, "#2A78D6"),
-        ("Fair (40-59%)", 40, 60, "#C77700"),
-        ("Low (0-39%)", 0, 40, "#C62828"),
+        ("Excellent (80-100%)", 80, 101, "#16A34A"),
+        ("Good (60-79%)", 60, 80, "#0EA5E9"),
+        ("Fair (40-59%)", 40, 60, "#D97706"),
+        ("Low (0-39%)", 0, 40, "#C13515"),
     ]
     all_confidences = list(
         QueryLog.objects.filter(user=user).values_list("confidence", flat=True)
@@ -479,11 +479,11 @@ def get_system_status(minimal=False):
 # QueryLog rows - nothing here is sampled or fabricated.
 
 DOCUMENT_TYPE_COLORS = {
-    "PDF": "#8B1E2D",
-    "DOCX": "#C77700",
-    "TXT": "#1F7A4D",
+    "PDF": "#FF385C",
+    "DOCX": "#D97706",
+    "TXT": "#16A34A",
 }
-DOCUMENT_TYPE_OTHER_COLOR = "#A9989A"
+DOCUMENT_TYPE_OTHER_COLOR = "#A3A3A3"
 
 
 def get_document_type_breakdown(user):
@@ -541,6 +541,7 @@ def get_documents_over_time(user, days=7):
     )
 
     labels, series, daily = [], [], []
+    starting_total = running_total
 
     for i in range(days):
         day = start_date + timedelta(days=i)
@@ -550,7 +551,16 @@ def get_documents_over_time(user, days=7):
         series.append(running_total)
         daily.append(added)
 
-    return {"labels": labels, "series": series, "daily": daily}
+    period_added = sum(daily)
+    growth_pct, _ = _period_change(starting_total + period_added, starting_total)
+
+    return {
+        "labels": labels,
+        "series": series,
+        "daily": daily,
+        "period_added": period_added,
+        "growth_pct": round(growth_pct),
+    }
 
 
 def _period_change(current, previous):

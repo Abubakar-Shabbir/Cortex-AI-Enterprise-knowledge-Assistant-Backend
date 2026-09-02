@@ -19,7 +19,7 @@
         maxlength="200"
         required
         placeholder="e.g. Scheduled maintenance tonight"
-        class="mb-4 w-full rounded-lg border border-line bg-surface p-3 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:placeholder:text-muted-dark"
+        class="mb-4 w-full rounded-lg border border-line bg-surface p-3 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:placeholder:text-muted-dark"
       >
 
       <label class="mb-1.5 block text-xs font-medium text-muted dark:text-muted-dark">Message</label>
@@ -29,7 +29,7 @@
         maxlength="500"
         required
         placeholder="What do you want every user to know?"
-        class="mb-4 w-full resize-none rounded-lg border border-line bg-surface p-3 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:placeholder:text-muted-dark"
+        class="mb-4 w-full resize-none rounded-lg border border-line bg-surface p-3 text-sm text-ink placeholder:text-muted focus:border-2 focus:border-ink focus:outline-none dark:focus:border-ink-dark dark:border-line-dark dark:bg-white/5 dark:text-ink-dark dark:placeholder:text-muted-dark"
       ></textarea>
 
       <button
@@ -37,8 +37,8 @@
         :disabled="submitting"
         class="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-70"
       >
-        <i data-lucide="loader-2" class="h-4 w-4 animate-spin" x-show="submitting"></i>
-        <i data-lucide="send" class="h-4 w-4" x-show="!submitting"></i>
+        <i class="ph ph-circle-notch text-[16px] animate-spin" x-show="submitting"></i>
+        <i class="ph ph-paper-plane-tilt text-[16px]" x-show="!submitting"></i>
         <span x-text="submitting ? 'Sending…' : 'Send to everyone'"></span>
       </button>
     </form>

@@ -23,7 +23,7 @@ concepts) without gaining access to the admin page it would link to.
     {% for event in activity_feed %}
       <div class="flex items-start gap-2.5 px-3.5 py-1.5">
         <div class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <i data-lucide="{{ event.icon }}" class="h-3.5 w-3.5"></i>
+          <i class="ph ph-{{ event.icon }} text-[14px]"></i>
         </div>
         <div class="min-w-0 flex-1">
           <p class="truncate text-sm text-ink dark:text-ink-dark">{{ event.text }}</p>
@@ -33,7 +33,7 @@ concepts) without gaining access to the admin page it would link to.
     {% empty %}
       <div class="flex items-center gap-2.5 px-3.5 py-3">
         <div class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-line/50 text-muted dark:bg-white/5 dark:text-muted-dark">
-          <i data-lucide="check" class="h-3.5 w-3.5"></i>
+          <i class="ph ph-check text-[14px]"></i>
         </div>
         <p class="text-sm text-muted dark:text-muted-dark">You're all caught up.</p>
       </div>

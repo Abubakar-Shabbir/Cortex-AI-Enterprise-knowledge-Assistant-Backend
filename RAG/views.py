@@ -1827,17 +1827,17 @@ def monitoring_view(request):
 
 
 _ACTIVITY_ICONS = {
-    "document.uploaded": "file-up",
-    "document.deleted": "trash-2",
-    "document.downloaded": "download",
-    "user.suspended": "user-x",
+    "document.uploaded": "file-arrow-up",
+    "document.deleted": "trash",
+    "document.downloaded": "download-simple",
+    "user.suspended": "user-minus",
     "user.reactivated": "user-check",
     "user.deleted": "user-minus",
     "user.role_changed": "shield",
-    "user.login": "log-in",
-    "user.logout": "log-out",
-    "ai_task.created": "sparkles",
-    "ai_task.deleted": "trash-2",
+    "user.login": "sign-in",
+    "user.logout": "sign-out",
+    "ai_task.created": "sparkle",
+    "ai_task.deleted": "trash",
 }
 
 # Visual category per action codename - drives the Activity tab's badge
@@ -1903,7 +1903,7 @@ def _build_activity_events(filters: dict, include_location: bool = True):
         if not (include_location and filters.get("location")):
             for doc in doc_qs[:300]:
                 events.append({
-                    "icon": "file-up",
+                    "icon": "file-arrow-up",
                     "category": "success",
                     "type": "document.uploaded",
                     "actor": doc.user.username,

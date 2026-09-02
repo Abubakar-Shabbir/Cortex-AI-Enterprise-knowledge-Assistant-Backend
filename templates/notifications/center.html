@@ -19,7 +19,7 @@
     <form method="POST" action="{% url 'notification_mark_all_read' %}" @submit="marking = true">
       {% csrf_token %}
       <button type="submit" :disabled="marking" class="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-xs font-medium text-ink transition-colors hover:border-primary/30 hover:text-primary disabled:opacity-60 dark:border-line-dark dark:text-ink-dark">
-        <i data-lucide="check-check" class="h-3.5 w-3.5"></i> Mark all as read
+        <i class="ph ph-checks text-[14px]"></i> Mark all as read
       </button>
     </form>
   </div>
@@ -36,7 +36,7 @@
             class="flex items-start gap-3 px-5 py-4 transition-colors hover:bg-surface dark:hover:bg-white/5 {% if not notification.is_read %}bg-primary/[0.03] dark:bg-primary/[0.06]{% endif %}"
           >
             <div class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-              <i data-lucide="{{ notification.icon }}" class="h-4 w-4"></i>
+              <i class="ph ph-{{ notification.icon }} text-[16px]"></i>
             </div>
             <div class="min-w-0 flex-1">
               <p class="text-sm font-medium text-ink dark:text-ink-dark">{{ notification.title }}</p>

@@ -3,7 +3,7 @@ Reusable KPI card: icon, big number, trend badge, and a real Chart.js
 sparkline (not CSS/SVG) rendered from a 7-point daily series.
 
 Required args:
-  icon         - lucide icon name
+  icon         - Phosphor icon name (kebab-case, e.g. "file-text")
   icon_bg      - Tailwind bg class for the icon badge (e.g. "bg-primary/10")
   icon_color   - Tailwind text class for the icon (e.g. "text-primary")
   label        - card title
@@ -18,11 +18,11 @@ Optional:
   numeric      - True to animate the value counting up from 0 (only for real integers)
 {% endcomment %}
 
-<div class="min-w-0 rounded-xl border border-line bg-card p-3 shadow-soft transition-transform hover:-translate-y-0.5 dark:border-line-dark dark:bg-card-dark">
+<div class="group min-w-0 rounded-xl border border-line bg-card p-3 shadow-soft transition-transform hover:-translate-y-0.5 dark:border-line-dark dark:bg-card-dark">
 
   <div class="flex items-center justify-between">
-    <div class="flex h-7 w-7 items-center justify-center rounded-lg {{ icon_bg }} {{ icon_color }}">
-      <i data-lucide="{{ icon }}" class="h-4 w-4"></i>
+    <div class="flex h-7 w-7 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105 {{ icon_bg }} {{ icon_color }}">
+      <i class="ph ph-{{ icon }} text-[16px]"></i>
     </div>
   </div>
 
@@ -42,13 +42,13 @@ Optional:
   <div class="mt-2 flex items-end justify-between gap-2">
     <div class="flex items-center gap-1 text-xs font-medium">
       {% if trend.direction == "up" %}
-        <i data-lucide="trending-up" class="h-3.5 w-3.5 text-success dark:text-success-dark"></i>
+        <i class="ph ph-trend-up text-[14px] text-success dark:text-success-dark"></i>
         <span class="text-success dark:text-success-dark">{{ trend.change_pct }}%</span>
       {% elif trend.direction == "down" %}
-        <i data-lucide="trending-down" class="h-3.5 w-3.5 text-danger dark:text-danger-dark"></i>
+        <i class="ph ph-trend-down text-[14px] text-danger dark:text-danger-dark"></i>
         <span class="text-danger dark:text-danger-dark">{{ trend.change_pct }}%</span>
       {% else %}
-        <i data-lucide="minus" class="h-3.5 w-3.5 text-muted dark:text-muted-dark"></i>
+        <i class="ph ph-minus text-[14px] text-muted dark:text-muted-dark"></i>
         <span class="text-muted dark:text-muted-dark">0%</span>
       {% endif %}
       <span class="text-muted dark:text-muted-dark">{{ trend_label }}</span>

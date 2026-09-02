@@ -26,7 +26,7 @@
               <td class="px-5 py-3.5">
                 <div class="flex items-center gap-2.5">
                   <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft/50 text-primary dark:bg-primary/15 dark:text-primary-soft">
-                    <i data-lucide="file-text" class="h-4 w-4"></i>
+                    <i class="ph ph-file-text text-[16px]"></i>
                   </div>
                   <span class="max-w-[220px] truncate font-medium text-ink dark:text-ink-dark">{{ item.doc.title }}</span>
                 </div>
@@ -46,14 +46,14 @@
               <td class="px-5 py-3.5">
                 <div class="flex items-center justify-end gap-1">
                   <a href="{% url 'document_download' item.doc.id %}" target="_blank" title="Open" class="rounded-lg p-2 text-muted transition-colors hover:bg-line hover:text-ink dark:text-muted-dark dark:hover:bg-white/10 dark:hover:text-ink-dark">
-                    <i data-lucide="external-link" class="h-4 w-4"></i>
+                    <i class="ph ph-arrow-square-out text-[16px]"></i>
                   </a>
                   <form method="POST" action="{% url 'collection_detail' collection.id %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="remove_document">
                     <input type="hidden" name="doc_id" value="{{ item.doc.id }}">
                     <button type="submit" title="Remove from collection" class="rounded-lg p-2 text-muted transition-colors hover:bg-danger/10 hover:text-danger dark:text-muted-dark dark:hover:text-danger-dark">
-                      <i data-lucide="folder-minus" class="h-4 w-4"></i>
+                      <i class="ph ph-folder-notch-minus text-[16px]"></i>
                     </button>
                   </form>
                 </div>
@@ -79,7 +79,7 @@
     {% endif %}
   {% else %}
     {% url 'documents' as documents_url %}
-    {% include "partials/_empty_state.html" with icon="folder-open" title="This collection is empty" message="Add documents to it from My Documents." action_url=documents_url action_label="Go to My Documents" %}
+    {% include "partials/_empty_state.html" with icon="folder-notch-open" title="This collection is empty" message="Add documents to it from My Documents." action_url=documents_url action_label="Go to My Documents" %}
   {% endif %}
 </div>
 

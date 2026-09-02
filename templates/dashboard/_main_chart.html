@@ -20,9 +20,22 @@ it actually is.
 
 {% url 'documents' as documents_url %}
 
-<div class="min-w-0 rounded-xl border border-line bg-card p-3 shadow-soft dark:border-line-dark dark:bg-card-dark">
-  <div class="mb-2 flex items-center justify-between">
-    <h2 class="text-sm font-semibold text-ink dark:text-ink-dark">Documents Over Time</h2>
+<div class="min-w-0 rounded-xl border border-line bg-card p-4 shadow-soft transition-shadow hover:shadow-[rgba(0,0,0,0.02)_0_0_0_1px,rgba(0,0,0,0.06)_0_4px_12px_0,rgba(0,0,0,0.14)_0_8px_20px_0] dark:border-line-dark dark:bg-card-dark">
+  <div class="mb-3 flex flex-wrap items-start justify-between gap-2">
+    <div>
+      <h2 class="text-sm font-semibold text-ink dark:text-ink-dark">Documents Over Time</h2>
+      {% if stats.total_documents %}
+        <div class="mt-1 flex items-center gap-2">
+          <span class="text-xl font-bold tracking-tight text-ink dark:text-ink-dark">{{ documents_over_time.series|last }}</span>
+          {% if documents_over_time.period_added %}
+            <span class="inline-flex items-center gap-1 rounded-full bg-success/10 px-1.5 py-0.5 text-[11px] font-semibold text-success dark:text-success-dark">
+              <i class="ph ph-trend-up text-[12px]"></i> +{{ documents_over_time.period_added }} ({{ documents_over_time.growth_pct }}%)
+            </span>
+          {% endif %}
+          <span class="text-[11px] text-muted dark:text-muted-dark">last {{ documents_over_time_range }} days</span>
+        </div>
+      {% endif %}
+    </div>
     {% if stats.total_documents %}
       <div class="relative" x-data="{ open: false }" @click.outside="open = false">
         <button
@@ -30,7 +43,7 @@ it actually is.
           @click="open = !open"
           class="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-1 text-xs font-medium text-ink transition-colors hover:bg-surface dark:border-line-dark dark:text-ink-dark dark:hover:bg-white/5"
         >
-          {{ documents_over_time_range }} Days <i data-lucide="chevron-down" class="h-3 w-3" :class="open && 'rotate-180'"></i>
+          {{ documents_over_time_range }} Days <i class="ph ph-caret-down text-[12px]" :class="open && 'rotate-180'"></i>
         </button>
         <div x-show="open" x-cloak x-transition class="absolute right-0 z-20 mt-1 w-28 rounded-xl border border-line bg-card p-1.5 shadow-soft dark:border-line-dark dark:bg-card-dark">
           {% for option in documents_over_time_ranges %}
@@ -54,13 +67,13 @@ it actually is.
     clipping neighboring cards, worse at tighter effective viewport
     widths (zoomed in) since there's less slack to hide it.
     {% endcomment %}
-    <div class="relative h-40 w-full"><canvas id="documentsOverTimeChart"></canvas></div>
-    <div class="mt-2 flex items-center gap-3 text-[11px] text-muted dark:text-muted-dark">
+    <div class="relative h-44 w-full"><canvas id="documentsOverTimeChart"></canvas></div>
+    <div class="mt-3 flex items-center gap-3 border-t border-line pt-2.5 text-[11px] text-muted dark:border-line-dark dark:text-muted-dark">
       <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-primary"></span> Total documents</span>
       <span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-sm bg-primary/30"></span> New that day</span>
     </div>
   {% else %}
-    {% include "partials/_empty_state.html" with icon="trending-up" title="No activity yet" message="Upload a document to start tracking growth over time." action_url=documents_url action_label="Go to Documents" %}
+    {% include "partials/_empty_state.html" with icon="trend-up" title="No activity yet" message="Upload a document to start tracking growth over time." action_url=documents_url action_label="Go to Documents" %}
   {% endif %}
 </div>
 
