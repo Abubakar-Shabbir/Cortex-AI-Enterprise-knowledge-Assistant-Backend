@@ -165,7 +165,15 @@ def graph_search(question: str, user, top_k: int, filters=None, accessible_docum
 
     `accessible_document_ids`, when provided, is used as-is instead of
     recomputing it here - lets retrieve_chunks() compute it once and
-    share it across vector/BM25/graph search.
+    share it across vector/BM25/graph search. retrieve_chunks() (the
+    only real caller) always passes this explicitly, computed with the
+    request's `organization` - so a caller that omits it here falls
+    back to get_accessible_document_ids(user) with NO organization,
+    i.e. Personal Workspace only. That's the safe direction to fail in
+    (under-scoped, never over-scoped across tenants), but it does mean
+    a future organization-context caller that forgets to pass this
+    explicitly would silently see only Personal Workspace results
+    inside an org, not that org's - not a leak, but worth knowing.
     """
 
     if user is None:
@@ -173,7 +181,7 @@ def graph_search(question: str, user, top_k: int, filters=None, accessible_docum
 
     try:
         if accessible_document_ids is None:
-            accessible_document_ids = get_accessible_document_ids(user)
+            accessible_document_ids = get_accessible_document_ids(user)  # Personal Workspace only - see docstring
 
         if not accessible_document_ids:
             return []

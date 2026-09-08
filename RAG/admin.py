@@ -20,6 +20,11 @@ from .models import (
     Favorite,
     Notification,
     NotificationPreference,
+    Organization,
+    OrganizationAuditLog,
+    OrganizationInvitation,
+    OrganizationMembership,
+    OrganizationType,
     Permission,
     QueryLog,
     Relationship,
@@ -253,6 +258,97 @@ class UserRoleAdmin(RBACAdminOnlyMixin, admin.ModelAdmin):
             description=f'"{obj.user.username}" set to {obj.role.name} by {request.user.username}',
             request=request,
         )
+
+
+class OrganizationAdminMixin:
+    """
+    Gates Django Admin access to Organization/OrganizationMembership/
+    OrganizationType on the platform-wide "organizations.manage" (or,
+    for read-only access, "organizations.view_all") permission - the
+    "Super Admin" oversight capability described in
+    RAG/services/org_permission_service.py's module docstring,
+    expressed the same way every other cross-tenant admin surface in
+    this file is: routed through permission_service, never Django's
+    own is_staff/is_superuser. An organization's OWN Owner/Admin
+    manage it through the app's own org-scoped views (not yet built -
+    see the milestone plan this was designed against), never through
+    Django Admin, which is platform-oversight-only.
+    """
+
+    def has_module_permission(self, request):
+        return user_has_permission(request.user, "organizations.view_all") or user_has_permission(request.user, "organizations.manage")
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return user_has_permission(request.user, "organizations.manage")
+
+    def has_change_permission(self, request, obj=None):
+        return user_has_permission(request.user, "organizations.manage")
+
+    def has_delete_permission(self, request, obj=None):
+        return user_has_permission(request.user, "organizations.manage")
+
+
+@admin.register(OrganizationType)
+class OrganizationTypeAdmin(OrganizationAdminMixin, admin.ModelAdmin):
+    list_display = ("name", "slug", "is_active")
+    search_fields = ("name", "slug")
+    prepopulated_fields = {"slug": ("name",)}
+
+
+class OrganizationMembershipInline(admin.TabularInline):
+    model = OrganizationMembership
+    extra = 0
+    autocomplete_fields = ("user",)
+    readonly_fields = ("joined_at",)
+
+
+@admin.register(Organization)
+class OrganizationAdmin(OrganizationAdminMixin, admin.ModelAdmin):
+    list_display = ("name", "slug", "org_type", "status", "created_by", "created_at")
+    list_filter = ("status", "org_type")
+    search_fields = ("name", "slug")
+    prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("created_at", "updated_at")
+    inlines = [OrganizationMembershipInline]
+
+
+@admin.register(OrganizationMembership)
+class OrganizationMembershipAdmin(OrganizationAdminMixin, admin.ModelAdmin):
+    list_display = ("user", "organization", "role", "status", "joined_at")
+    list_filter = ("role", "status")
+    search_fields = ("user__username", "user__email", "organization__name", "organization__slug")
+    autocomplete_fields = ("user", "organization")
+    readonly_fields = ("joined_at",)
+
+
+@admin.register(OrganizationInvitation)
+class OrganizationInvitationAdmin(OrganizationAdminMixin, admin.ModelAdmin):
+    list_display = ("email", "organization", "role", "status", "invited_by", "expires_at", "created_at")
+    list_filter = ("status", "role")
+    search_fields = ("email", "organization__name", "organization__slug")
+    autocomplete_fields = ("organization", "invited_by", "accepted_by")
+    readonly_fields = ("token", "created_at", "accepted_at", "revoked_at")
+
+
+@admin.register(OrganizationAuditLog)
+class OrganizationAuditLogAdmin(OrganizationAdminMixin, admin.ModelAdmin):
+    list_display = ("organization", "action", "actor", "created_at")
+    list_filter = ("action",)
+    search_fields = ("organization__name", "organization__slug", "actor__username", "description")
+    autocomplete_fields = ("organization", "actor")
+    readonly_fields = ("organization", "actor", "action", "description", "metadata", "ip_address", "created_at")
+
+    def has_add_permission(self, request):
+        # Audit rows are written only by org_audit_log_service.log_org_activity() -
+        # never hand-created, matching ActivityLog's own RBACScopedModelAdmin
+        # convention elsewhere in this file.
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 class RBACScopedModelAdmin(admin.ModelAdmin):

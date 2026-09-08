@@ -8,7 +8,10 @@ already make. No aggregate query is reimplemented here.
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
+from ..models import FEATURE_CODES
 from ..services.knowledge_service import get_knowledge_overview
+from ..services.org_member_feature_service import has_feature_access
+from ..services.org_permission_service import ORG_ROLE_OWNER, get_user_org_role, resolve_request_organization
 from ..services.permission_service import get_user_access_snapshot
 from ..services.stats_service import (
     get_dashboard_stats,
@@ -29,9 +32,37 @@ DASHBOARD_CHART_RANGES = (7, 14, 30)
 @api_view(["GET"])
 def dashboard_view(request):
     user = request.user
-    stats = get_dashboard_stats(user)
-    activity = get_recent_activity(user)
-    knowledge_overview = get_knowledge_overview(user)
+    organization, _ = resolve_request_organization(request)
+
+    # A plain Member's Overview must show only their own activity, not
+    # the whole company's - only the org Owner (or Personal Workspace,
+    # organization is None) gets the whole-workspace numbers
+    # _workspace_scope() otherwise always returns. See
+    # stats_service._workspace_scope()'s scope_to_own docstring.
+    scope_to_own = organization is not None and get_user_org_role(user, organization) != ORG_ROLE_OWNER
+
+    try:
+        chart_range = int(request.query_params.get("range", 7))
+    except (TypeError, ValueError):
+        chart_range = 7
+    if chart_range not in DASHBOARD_CHART_RANGES:
+        chart_range = 7
+
+    stats = get_dashboard_stats(user, organization=organization, scope_to_own=scope_to_own)
+    activity = get_recent_activity(user, organization=organization, scope_to_own=scope_to_own)
+    knowledge_overview = get_knowledge_overview(user, organization=organization)
+    document_types = get_document_type_breakdown(user, organization=organization, scope_to_own=scope_to_own)
+    documents_over_time = get_documents_over_time(user, days=chart_range, organization=organization, scope_to_own=scope_to_own)
+    recent_documents_table = get_recent_documents_table(user, organization=organization, scope_to_own=scope_to_own)
+    # Same "same design, but the org's Plan can hide things" gate
+    # analytics_views.py/reports_views.py already apply at the page
+    # level (HasOrgFeatureAccess) - here it's per-section instead of
+    # per-page, so User Overview/Company Owner Overview can hide just
+    # the Knowledge Base or AI Tasks card rather than the whole page.
+    # Works for both Personal (organization=None, personal Plan
+    # ceiling) and Company (org Plan ceiling + per-member override) -
+    # see org_member_feature_service.has_feature_access()'s docstring.
+    feature_access = {code: has_feature_access(user, organization, code) for code in FEATURE_CODES}
     role, can_view_admin_area, user_permissions = get_user_access_snapshot(user)
 
     # Same merged-and-sorted shape context_processors.sidebar_status
@@ -58,6 +89,26 @@ def dashboard_view(request):
             "storage_used": stats["storage_used"],
             "ai_task_runs": stats["ai_task_runs"],
         },
+        "kpi_trends": get_kpi_trends(user, organization=organization, scope_to_own=scope_to_own),
+        "documents_over_time": documents_over_time,
+        "documents_over_time_range": chart_range,
+        "documents_over_time_ranges": list(DASHBOARD_CHART_RANGES),
+        "document_types": document_types,
+        "recent_documents_table": [
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "owner": row["owner"],
+                "file_type": row["file_type"],
+                "chunk_count": row["chunk_count"],
+                "size": row["size"],
+                "size_bytes": row["size_bytes"],
+                "uploaded_at": row["uploaded_at"].isoformat(),
+                "status": row["status"],
+            }
+            for row in recent_documents_table
+        ],
+        "feature_access": feature_access,
         "knowledge_overview": {
             "total_entities": knowledge_overview.get("total_entities", 0),
             "total_relationships": knowledge_overview.get("total_relationships", 0),
@@ -114,6 +165,7 @@ def admin_overview_view(request):
     """
 
     user = request.user
+    organization, _ = resolve_request_organization(request)
 
     try:
         chart_range = int(request.query_params.get("range", 7))
@@ -122,12 +174,12 @@ def admin_overview_view(request):
     if chart_range not in DASHBOARD_CHART_RANGES:
         chart_range = 7
 
-    stats = get_dashboard_stats(user)
-    activity = get_recent_activity(user)
-    knowledge_overview = get_knowledge_overview(user)
-    document_types = get_document_type_breakdown(user)
-    documents_over_time = get_documents_over_time(user, days=chart_range)
-    recent_documents_table = get_recent_documents_table(user)
+    stats = get_dashboard_stats(user, organization=organization)
+    activity = get_recent_activity(user, organization=organization)
+    knowledge_overview = get_knowledge_overview(user, organization=organization)
+    document_types = get_document_type_breakdown(user, organization=organization)
+    documents_over_time = get_documents_over_time(user, days=chart_range, organization=organization)
+    recent_documents_table = get_recent_documents_table(user, organization=organization)
     role, can_view_admin_area, user_permissions = get_user_access_snapshot(user)
 
     events = [
@@ -147,7 +199,7 @@ def admin_overview_view(request):
             "storage_used": stats["storage_used"],
             "ai_task_runs": stats["ai_task_runs"],
         },
-        "kpi_trends": get_kpi_trends(user),
+        "kpi_trends": get_kpi_trends(user, organization=organization),
         "documents_over_time": documents_over_time,
         "documents_over_time_range": chart_range,
         "documents_over_time_ranges": list(DASHBOARD_CHART_RANGES),

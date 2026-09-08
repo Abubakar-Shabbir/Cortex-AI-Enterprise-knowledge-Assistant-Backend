@@ -23,11 +23,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from ..auth_views import RAGPasswordResetForm, SignupForm, PASSWORD_RESET_ATTEMPTS_PER_EMAIL, PASSWORD_RESET_ATTEMPTS_PER_IP, SIGNUP_ATTEMPTS_PER_IP
-from ..models import Role, User, UserRole
+from ..models import OrganizationType, Role, User, UserProfile, UserRole
 from ..services import otp_service
 from ..services.activity_log_service import log_activity
 from ..services.geolocation_service import get_client_ip
 from ..services.notification_service import create_notification
+from ..services.organization_service import OrganizationServiceError, create_organization
 from ..services.permission_service import USER, get_user_access_snapshot, has_admin_area_access
 from ..services.rate_limit_service import is_rate_limited
 from ..utils.formatting import mask_email
@@ -42,8 +43,28 @@ def _form_errors(form):
     return errors
 
 
+def _resolve_portal(can_view_admin_area, account_type):
+    """
+    The single backend-computed source of truth for which of the
+    three portals (Personal/Company/Platform Admin) the frontend
+    should render - never derived independently client-side from
+    `role`/`accountType`, so there's exactly one place "which portal"
+    is decided. Platform admin access always wins (an Admin/Super
+    Admin who also happens to own a company still lands in the
+    Platform portal by default - they can still reach their own
+    organization's pages directly, this only decides the default
+    shell/nav).
+    """
+    if can_view_admin_area:
+        return "platform_admin"
+    if account_type == UserProfile.AccountType.COMPANY:
+        return "company"
+    return "personal"
+
+
 def _session_payload(request):
     role, can_view_admin_area, user_permissions = get_user_access_snapshot(request.user)
+    account_type = getattr(getattr(request.user, "profile", None), "account_type", UserProfile.AccountType.PERSONAL)
     return {
         "authenticated": True,
         "user": {
@@ -56,6 +77,23 @@ def _session_payload(request):
         "role": role.name if role else None,
         "can_view_admin_area": can_view_admin_area,
         "permissions": user_permissions,
+        # Decided once at signup (or by accepting an invitation) - the
+        # frontend reads this to decide whether to show the Company
+        # workspace switcher at all (never a Personal<->Company choice -
+        # see UserProfile.account_type's help_text), but it's read-only
+        # information from the frontend's point of view: every actual
+        # authorization decision is still made server-side from this
+        # same field plus real OrganizationMembership rows, regardless
+        # of what the frontend does with it.
+        "account_type": account_type,
+        "portal": _resolve_portal(can_view_admin_area, account_type),
+        # Set by org_member_registration_service.register_company_member()
+        # for a company-registered member's generated password - the SPA
+        # blocks every route except the password-change page until the
+        # user clears this (RAG.api.profile_views.profile_password_view
+        # clears it as a side effect of a successful change). Always
+        # False for a self-service Personal/Company signup.
+        "must_change_password": getattr(getattr(request.user, "profile", None), "must_change_password", False),
         "csrf_token": get_token(request),
     }
 
@@ -139,11 +177,53 @@ def logout_view(request):
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def signup_view(request):
-    """JSON wrapper around RAG.auth_views.signup()'s POST branch - same SignupForm, same rate limit, same inactive-user-plus-OTP account creation."""
+    """
+    JSON wrapper around RAG.auth_views.signup()'s POST branch - same
+    SignupForm, same rate limit, same inactive-user-plus-OTP account
+    creation - plus the Personal vs Company decision this account
+    starts with.
+
+    `account_type` ("personal" or "company", default "personal" so an
+    invitation-flow signup that never shows this choice at all still
+    works) is a one-time decision, not something a workspace switcher
+    ever changes afterward - see UserProfile.account_type's help_text.
+    A "company" signup also registers the Organization and makes this
+    user its Owner, atomically with the account itself; an invited
+    employee instead stays "personal" here and is flipped to "company"
+    only once they actually accept that invitation (see
+    org_invitation_service.accept_invitation()) - signing up alone,
+    without accepting anything, must never grant organization access.
+    """
 
     ip = get_client_ip(request)
     if ip and is_rate_limited(f"signup:ip:{ip}", *SIGNUP_ATTEMPTS_PER_IP):
         return Response({"error": "Too many signup attempts from this location. Please try again later."}, status=429)
+
+    account_type = (request.data.get("account_type") or UserProfile.AccountType.PERSONAL).strip().lower()
+    if account_type not in (UserProfile.AccountType.PERSONAL, UserProfile.AccountType.COMPANY):
+        return Response({"errors": {"account_type": ["Choose Personal or Company."]}}, status=400)
+
+    company_fields = {}
+    company_org_type = None
+    if account_type == UserProfile.AccountType.COMPANY:
+        company_name = (request.data.get("company_name") or "").strip()
+        if not company_name:
+            return Response({"errors": {"company_name": ["Company name is required."]}}, status=400)
+
+        company_org_type = OrganizationType.objects.filter(
+            slug=(request.data.get("company_org_type") or "").strip(), is_active=True,
+        ).first()
+        if not company_org_type:
+            return Response({"errors": {"company_org_type": ["Choose a valid organization type."]}}, status=400)
+
+        company_fields = {
+            "description": (request.data.get("company_description") or "").strip(),
+            "website": (request.data.get("company_website") or "").strip(),
+            "industry": (request.data.get("company_industry") or "").strip(),
+            "size": (request.data.get("company_size") or "").strip(),
+            "contact_email": (request.data.get("company_contact_email") or "").strip(),
+            "contact_phone": (request.data.get("company_contact_phone") or "").strip(),
+        }
 
     form = SignupForm(request.data)
 
@@ -165,6 +245,22 @@ def signup_view(request):
 
     default_role, _ = Role.objects.get_or_create(slug=USER, defaults={"name": "User", "is_system": True})
     UserRole.objects.create(user=new_user, role=default_role)
+
+    new_user.profile.account_type = account_type
+    new_user.profile.save(update_fields=["account_type"])
+
+    if account_type == UserProfile.AccountType.COMPANY:
+        try:
+            create_organization(
+                name=company_name,
+                org_type=company_org_type,
+                created_by=new_user,
+                slug=request.data.get("company_slug"),
+                **company_fields,
+            )
+        except OrganizationServiceError as e:
+            new_user.delete()
+            return Response({"errors": {"company_name": [str(e)]}}, status=400)
 
     log_activity(actor=new_user, action="user.signed_up", description=f"{new_user.username} created an account", request=request)
 

@@ -19,10 +19,11 @@ from rest_framework.response import Response
 from ..models import Document
 from ..services import knowledge_service as ks
 from ..services.document_access_service import get_accessible_document_ids
+from ..services.org_permission_service import resolve_request_organization
 from ..utils.formatting import format_bytes
-from .permissions import HasPagePermission
+from .permissions import HasOrgFeatureAccess, HasPagePermission
 
-_kb_permission = permission_classes([HasPagePermission("pages.knowledge_base")])
+_kb_permission = permission_classes([HasPagePermission("pages.knowledge_base"), HasOrgFeatureAccess("knowledge_base")])
 
 
 def _entity(e, **extra):
@@ -92,7 +93,8 @@ def _recently_updated(events):
 @api_view(["GET"])
 @_kb_permission
 def knowledge_browse_view(request):
-    dataset = ks._build_topic_dataset(request.user)
+    organization, _ = resolve_request_organization(request)
+    dataset = ks._build_topic_dataset(request.user, organization=organization)
     overview = ks.get_knowledge_overview(request.user, dataset=dataset)
     insights = ks.get_knowledge_insights(request.user, dataset=dataset)
 
@@ -113,7 +115,8 @@ def knowledge_browse_view(request):
 @api_view(["GET"])
 @_kb_permission
 def entity_detail_view(request, entity_id):
-    detail = ks.get_topic_detail(request.user, entity_id)
+    organization, _ = resolve_request_organization(request)
+    detail = ks.get_topic_detail(request.user, entity_id, organization=organization)
     if detail is None:
         raise Http404
 
@@ -148,13 +151,14 @@ def entity_detail_view(request, entity_id):
 @api_view(["GET"])
 @_kb_permission
 def relationships_view(request):
+    organization, _ = resolve_request_organization(request)
     relation_type = request.GET.get("type", "").strip()
-    page_obj = ks.get_relationships(request.user, relation_type=relation_type, page=request.GET.get("page"))
+    page_obj = ks.get_relationships(request.user, relation_type=relation_type, page=request.GET.get("page"), organization=organization)
 
     return Response({
         "relationships": [_rel(r) for r in page_obj],
         "pagination": _paginate(page_obj),
-        "relation_types": ks.get_relation_types(request.user),
+        "relation_types": ks.get_relation_types(request.user, organization=organization),
         "selected_type": relation_type,
     })
 
@@ -162,8 +166,9 @@ def relationships_view(request):
 @api_view(["GET"])
 @_kb_permission
 def knowledge_graph_view(request):
-    graph_data = ks.get_graph_data(request.user)
-    insights = ks.get_graph_insights(request.user)
+    organization, _ = resolve_request_organization(request)
+    graph_data = ks.get_graph_data(request.user, organization=organization)
+    insights = ks.get_graph_insights(request.user, organization=organization)
 
     present_types = sorted({node["group"] for node in graph_data["nodes"]})
     entity_type_colors = {t: ks.get_entity_type_color(t) for t in present_types}
@@ -185,7 +190,8 @@ def knowledge_graph_view(request):
 @api_view(["GET"])
 @_kb_permission
 def graph_node_detail_view(request, entity_id):
-    detail = ks.get_topic_node_detail(request.user, entity_id)
+    organization, _ = resolve_request_organization(request)
+    detail = ks.get_topic_node_detail(request.user, entity_id, organization=organization)
     if detail is None:
         raise Http404
     return Response(detail)
@@ -194,13 +200,14 @@ def graph_node_detail_view(request, entity_id):
 @api_view(["GET"])
 @_kb_permission
 def graph_edge_detail_view(request):
+    organization, _ = resolve_request_organization(request)
     try:
         topic_a_id = int(request.GET.get("a"))
         topic_b_id = int(request.GET.get("b"))
     except (TypeError, ValueError):
         return Response({"error": "Query params 'a' and 'b' must be entity ids."}, status=400)
 
-    detail = ks.get_topic_pair_relationship_detail(request.user, topic_a_id, topic_b_id)
+    detail = ks.get_topic_pair_relationship_detail(request.user, topic_a_id, topic_b_id, organization=organization)
     if detail is None:
         raise Http404
     return Response(detail)
@@ -209,14 +216,18 @@ def graph_edge_detail_view(request):
 @api_view(["GET"])
 @_kb_permission
 def citation_explorer_view(request):
-    citations = ks.resolve_topics_for_citations(request.user, ks.get_citation_explorer(request.user))
+    organization, _ = resolve_request_organization(request)
+    citations = ks.resolve_topics_for_citations(
+        request.user, ks.get_citation_explorer(request.user, organization=organization), organization=organization,
+    )
     return Response({"citations": citations})
 
 
 @api_view(["GET"])
 @_kb_permission
 def knowledge_insights_view(request):
-    insights = ks.get_knowledge_insights(request.user)
+    organization, _ = resolve_request_organization(request)
+    insights = ks.get_knowledge_insights(request.user, organization=organization)
 
     return Response({
         "most_referenced_documents": [_doc(d, mention_total=d.mention_total) for d in insights["most_referenced_documents"]],
@@ -236,7 +247,8 @@ def knowledge_insights_view(request):
 @api_view(["GET"])
 @_kb_permission
 def document_knowledge_view(request, doc_id):
-    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user))
+    organization, _ = resolve_request_organization(request)
+    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user, organization=organization))
 
     knowledge = ks.get_document_knowledge(request.user, document)
     if knowledge is None:

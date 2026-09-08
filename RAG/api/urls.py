@@ -8,9 +8,10 @@ independently and the classic pages keep working unmodified.
 from django.urls import path
 
 from . import (
-    admin_queries_views, admin_roles_views, admin_settings_views, admin_system_logs_views, admin_users_views,
-    ai_tasks_views, analytics_views, ask_views, auth_views, collections_views, dashboard_views, documents_views,
-    knowledge_views, monitoring_views, notification_views, profile_views, reports_views, search_history_views,
+    admin_queries_views, admin_roles_views, admin_settings_views, admin_system_logs_views, admin_system_overview_views,
+    admin_users_views, ai_tasks_views, analytics_views, ask_views, auth_views, billing_views, collections_views,
+    dashboard_views, documents_views, knowledge_views, monitoring_views, notification_views,
+    organizations_views, personal_billing_views, profile_views, reports_views, search_history_views,
 )
 
 urlpatterns = [
@@ -122,4 +123,36 @@ urlpatterns = [
     path("reports/comparison.csv", reports_views.export_comparison_report_view, name="api_export_comparison_report"),
     path("reports/ai-task-runs.csv", reports_views.export_ai_task_runs_report_view, name="api_export_ai_task_runs_report"),
     path("reports/knowledge-topics.csv", reports_views.export_knowledge_topics_report_view, name="api_export_knowledge_topics_report"),
+
+    path("organizations/", organizations_views.organizations_view, name="api_organizations"),
+    path("organizations/types/", organizations_views.organization_types_view, name="api_organization_types"),
+    path("organizations/invitations/accept/", organizations_views.organization_invitation_accept_view, name="api_organization_invitation_accept"),
+    path("organizations/<slug:org_slug>/", organizations_views.organization_detail_view, name="api_organization_detail"),
+    path("organizations/<slug:org_slug>/stats/", organizations_views.organization_stats_view, name="api_organization_stats"),
+    path("organizations/<slug:org_slug>/queries/", organizations_views.organization_queries_view, name="api_organization_queries"),
+    path("organizations/<slug:org_slug>/ai-credits/", organizations_views.organization_ai_credits_view, name="api_organization_ai_credits"),
+    path("organizations/<slug:org_slug>/members/", organizations_views.organization_members_view, name="api_organization_members"),
+    path("organizations/<slug:org_slug>/members/register/", organizations_views.organization_member_register_view, name="api_organization_member_register"),
+    path("organizations/<slug:org_slug>/members/action/", organizations_views.organization_member_action_view, name="api_organization_member_action"),
+    path("organizations/<slug:org_slug>/invitations/", organizations_views.organization_invitations_view, name="api_organization_invitations"),
+    path("organizations/<slug:org_slug>/invitations/<int:invitation_id>/revoke/", organizations_views.organization_invitation_revoke_view, name="api_organization_invitation_revoke"),
+    path("organizations/<slug:org_slug>/audit-logs/", organizations_views.organization_audit_logs_view, name="api_organization_audit_logs"),
+
+    path("organizations/<slug:org_slug>/billing/", billing_views.organization_billing_view, name="api_organization_billing"),
+    path("organizations/<slug:org_slug>/billing/request-plan/", billing_views.organization_plan_request_view, name="api_organization_plan_request"),
+
+    path("personal/billing/", personal_billing_views.personal_billing_view, name="api_personal_billing"),
+    path("personal/billing/request-plan/", personal_billing_views.personal_plan_request_view, name="api_personal_plan_request"),
+    path("personal/billing/ai-credits/", personal_billing_views.personal_ai_credits_view, name="api_personal_ai_credits"),
+
+    path("admin/organizations/", organizations_views.platform_organizations_view, name="api_platform_organizations"),
+    path("admin/organizations/<slug:org_slug>/action/", organizations_views.platform_organization_action_view, name="api_platform_organization_action"),
+    path("admin/system-overview/", admin_system_overview_views.admin_system_overview_view, name="api_admin_system_overview"),
+
+    path("admin/billing/plans/", billing_views.plans_view, name="api_billing_plans"),
+    path("admin/billing/plans/<int:plan_id>/", billing_views.plan_detail_view, name="api_billing_plan_detail"),
+    path("admin/billing/organizations/", billing_views.platform_organizations_billing_view, name="api_billing_organizations"),
+    path("admin/billing/organizations/<slug:org_slug>/assign-plan/", billing_views.assign_plan_view, name="api_billing_assign_plan"),
+    path("admin/billing/plan-requests/", billing_views.plan_requests_view, name="api_billing_plan_requests"),
+    path("admin/billing/plan-requests/<int:request_id>/action/", billing_views.plan_request_action_view, name="api_billing_plan_request_action"),
 ]

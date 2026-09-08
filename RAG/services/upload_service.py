@@ -23,6 +23,7 @@ def upload_document(
     user,
     title,
     file,
+    organization=None,
 ):
     """
     Upload Pipeline
@@ -42,6 +43,14 @@ def upload_document(
     automatically here. That view is what checks
     settings.ENABLE_ASYNC_PROCESSING to decide whether to dispatch to
     the background thread pool or run inline.
+
+    `organization=None` (the default) uploads into `user`'s Personal
+    Workspace, today's exact pre-multi-tenancy behavior. Passed a real
+    Organization, the created Document belongs to that tenant instead -
+    the caller (documents_views.document_upload_view) is responsible
+    for resolving and authorizing that organization before calling this
+    (org_permission_service.resolve_request_organization), never this
+    function's job.
     """
 
     # ==================================================
@@ -57,6 +66,7 @@ def upload_document(
     duplicate, file_hash = check_duplicate(
         user=user,
         file=file,
+        organization=organization,
     )
 
     if duplicate:
@@ -90,6 +100,8 @@ def upload_document(
         file_type=metadata["file_type"],
 
         file_size=metadata["file_size"],
+
+        organization=organization,
 
     )
 

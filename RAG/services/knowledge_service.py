@@ -197,7 +197,7 @@ def _group_into_topics(entities, doc_map):
     return topics
 
 
-def _build_topic_dataset(user):
+def _build_topic_dataset(user, organization=None):
     """
     Shared computation behind every Topic-level read: the viewer's
     accessible scope, its visible entities merged into Topics, and the
@@ -208,9 +208,15 @@ def _build_topic_dataset(user):
     Knowledge Center page/insight that needs "the topics this user can
     see" goes through this one function so the merge logic only lives
     in one place.
+
+    `organization` (default None = Personal Workspace) is forwarded
+    to get_accessible_document_ids() exactly like every other
+    org-aware entry point in this codebase - see
+    org_permission_service.resolve_request_organization()'s docstring
+    for the header-resolution side of this.
     """
 
-    accessible_document_ids = get_accessible_document_ids(user)
+    accessible_document_ids = get_accessible_document_ids(user, organization=organization)
 
     if not accessible_document_ids:
         return {
@@ -313,7 +319,7 @@ def _bucket_documents(documents):
 # Explore Topics
 # ==========================================================================
 
-def get_knowledge_overview(user, dataset=None):
+def get_knowledge_overview(user, dataset=None, organization=None):
     """
     Summary counts + category breakdown for Explore Topics.
 
@@ -327,11 +333,13 @@ def get_knowledge_overview(user, dataset=None):
     that needs more than one of get_knowledge_overview()/
     get_knowledge_insights()/search_topics() in the same request (e.g.
     knowledge_base_view) build the ~5-query dataset once and share it,
-    instead of each function rebuilding it independently.
+    instead of each function rebuilding it independently. `organization`
+    is ignored when `dataset` is already supplied - it only matters for
+    building a fresh one.
     """
 
     if dataset is None:
-        dataset = _build_topic_dataset(user)
+        dataset = _build_topic_dataset(user, organization=organization)
     topics = dataset["topics"]
     accessible_document_ids = dataset["accessible_document_ids"]
 
@@ -397,7 +405,7 @@ def _build_category_breakdown(categories):
     return breakdown
 
 
-def search_topics(user, query="", entity_type="", page=1, dataset=None):
+def search_topics(user, query="", entity_type="", page=1, dataset=None, organization=None):
     """
     Paginated, optionally filtered Topic list, ordered by aggregated
     mention count.
@@ -407,14 +415,15 @@ def search_topics(user, query="", entity_type="", page=1, dataset=None):
     them - see get_knowledge_overview()'s docstring for why. The
     entity query itself still runs fresh (query/entity_type filtering
     needs to happen in the database, not by re-filtering an
-    already-fetched Python list).
+    already-fetched Python list). `organization` is ignored when
+    `dataset` is already supplied.
     """
 
     if dataset is not None:
         accessible_document_ids = dataset["accessible_document_ids"]
         visible_entity_ids = dataset["visible_entity_ids"]
     else:
-        accessible_document_ids = get_accessible_document_ids(user)
+        accessible_document_ids = get_accessible_document_ids(user, organization=organization)
         visible_entity_ids = _visible_entity_ids(accessible_document_ids) if accessible_document_ids else set()
 
     if not accessible_document_ids:
@@ -437,7 +446,7 @@ def search_topics(user, query="", entity_type="", page=1, dataset=None):
     return Paginator(topics, ENTITIES_PER_PAGE).get_page(page)
 
 
-def list_all_topics(user):
+def list_all_topics(user, organization=None):
     """
     Every Topic visible to `user`, unpaginated (bounded by
     KNOWLEDGE_MAX_ENTITIES) and sorted by mention count - for CSV
@@ -445,7 +454,7 @@ def list_all_topics(user):
     search_topics()'s paginated Explore Topics page.
     """
 
-    dataset = _build_topic_dataset(user)
+    dataset = _build_topic_dataset(user, organization=organization)
 
     return sorted(dataset["topics"], key=lambda t: (-t["mention_count"], t["display_name"]))
 
@@ -454,7 +463,7 @@ def list_all_topics(user):
 # Topic Detail
 # ==========================================================================
 
-def get_topic_detail(user, entity_id):
+def get_topic_detail(user, entity_id, organization=None):
     """
     A Topic's full detail view: overview, connected documents (bucketed),
     related teams, connected concepts (relationships), cross-references,
@@ -462,7 +471,7 @@ def get_topic_detail(user, entity_id):
     isn't visible to `user`.
     """
 
-    dataset = _build_topic_dataset(user)
+    dataset = _build_topic_dataset(user, organization=organization)
 
     if entity_id not in dataset["visible_entity_ids"]:
         return None
@@ -518,7 +527,7 @@ def get_topic_detail(user, entity_id):
     timeline = _topic_timeline(mentions[:20], outgoing[:10] + incoming[:10])
 
     chunk_keys = {(m.chunk.document.title, m.chunk.chunk_number) for m in mentions}
-    citations = [c for c in get_citation_explorer(user) if (c["document"], c["chunk_number"]) in chunk_keys][:20]
+    citations = [c for c in get_citation_explorer(user, organization=organization) if (c["document"], c["chunk_number"]) in chunk_keys][:20]
 
     return {
         "entity": top,
@@ -599,10 +608,10 @@ def _topic_timeline(mentions, relationships, limit=20):
 # Relationship Explorer
 # ==========================================================================
 
-def get_relationships(user, relation_type="", page=1):
+def get_relationships(user, relation_type="", page=1, organization=None):
     """Paginated relationship list, both endpoints visible to `user`, most-reinforced first."""
 
-    accessible_document_ids = get_accessible_document_ids(user)
+    accessible_document_ids = get_accessible_document_ids(user, organization=organization)
 
     if not accessible_document_ids:
         return Paginator([], RELATIONSHIPS_PER_PAGE).get_page(page)
@@ -620,10 +629,10 @@ def get_relationships(user, relation_type="", page=1):
     return Paginator(relationships, RELATIONSHIPS_PER_PAGE).get_page(page)
 
 
-def get_relation_types(user):
+def get_relation_types(user, organization=None):
     """Distinct relation_type values visible to `user`, for the Relationship Explorer's filter dropdown."""
 
-    accessible_document_ids = get_accessible_document_ids(user)
+    accessible_document_ids = get_accessible_document_ids(user, organization=organization)
 
     if not accessible_document_ids:
         return []
@@ -642,10 +651,10 @@ def get_relation_types(user):
 # Knowledge Graph View
 # ==========================================================================
 
-def get_graph_data(user):
+def get_graph_data(user, organization=None):
     """Nodes/edges for the Knowledge Graph visualization, shaped for vis-network - Topic-granularity (not raw Entity rows), capped at GRAPH_NODE_LIMIT by mention count."""
 
-    dataset = _build_topic_dataset(user)
+    dataset = _build_topic_dataset(user, organization=organization)
 
     topics = sorted(dataset["topics"], key=lambda t: -t["mention_count"])[:GRAPH_NODE_LIMIT]
 
@@ -682,10 +691,10 @@ def get_graph_data(user):
     return {"nodes": nodes, "edges": edges}
 
 
-def get_graph_insights(user):
+def get_graph_insights(user, organization=None):
     """A handful of real, computed-not-fabricated stats about the shape of the viewer's visible knowledge graph, at Topic granularity."""
 
-    dataset = _build_topic_dataset(user)
+    dataset = _build_topic_dataset(user, organization=organization)
     topics = dataset["topics"]
     relationships = dataset["relationships"]
     entity_to_topic_key = dataset["entity_to_topic_key"]
@@ -727,7 +736,7 @@ def get_graph_insights(user):
     }
 
 
-def get_topic_node_detail(user, entity_id):
+def get_topic_node_detail(user, entity_id, organization=None):
     """
     Trimmed, JSON-serializable subset of get_topic_detail() for the
     Knowledge Graph's click-a-node side panel - reuses that function
@@ -736,7 +745,7 @@ def get_topic_node_detail(user, entity_id):
     click away via "detail_url").
     """
 
-    detail = get_topic_detail(user, entity_id)
+    detail = get_topic_detail(user, entity_id, organization=organization)
     if detail is None:
         return None
 
@@ -764,7 +773,7 @@ def get_topic_node_detail(user, entity_id):
     }
 
 
-def get_topic_pair_relationship_detail(user, topic_a_id, topic_b_id):
+def get_topic_pair_relationship_detail(user, topic_a_id, topic_b_id, organization=None):
     """
     The underlying Relationship rows between two Topics' member
     entities (either direction) - for the Knowledge Graph's
@@ -774,7 +783,7 @@ def get_topic_pair_relationship_detail(user, topic_a_id, topic_b_id):
     visible Topic.
     """
 
-    dataset = _build_topic_dataset(user)
+    dataset = _build_topic_dataset(user, organization=organization)
 
     entity_a = Entity.objects.filter(id=topic_a_id).first()
     entity_b = Entity.objects.filter(id=topic_b_id).first()
@@ -817,17 +826,24 @@ def get_topic_pair_relationship_detail(user, topic_a_id, topic_b_id):
 # Citation Viewer
 # ==========================================================================
 
-def get_citation_explorer(user):
+def get_citation_explorer(user, organization=None):
     """
     Every distinct (document, chunk_number) actually cited across this
     user's own Q&A history (QueryLog.sources' citation_number), most
     recent question first. QueryLog is inherently personal ("questions
     I asked"), so - unlike everything else in this module - this is
     correctly scoped by `user` already, not by document accessibility.
+
+    `organization` further scopes to questions asked *inside* that
+    workspace (QueryLog.organization, set by query_service.answer_question()
+    from the same header-resolved value) - a citation from a question
+    asked in Org A's workspace has no business surfacing while browsing
+    Personal Workspace citations, even though both were asked by the
+    same user.
     """
 
     logs = (
-        QueryLog.objects.filter(user=user)
+        QueryLog.objects.filter(user=user, organization=organization)
         .exclude(sources=[])
         .order_by("-created_at")[:CITATIONS_LIMIT]
     )
@@ -850,7 +866,7 @@ def get_citation_explorer(user):
     return citations
 
 
-def resolve_topics_for_citations(user, citations):
+def resolve_topics_for_citations(user, citations, organization=None):
     """
     Best-effort cross-link from a cited (document title, chunk_number)
     back to its Topic Detail page, for the Citation Viewer. Annotates
@@ -864,7 +880,7 @@ def resolve_topics_for_citations(user, citations):
     if not citations:
         return citations
 
-    accessible_document_ids = get_accessible_document_ids(user)
+    accessible_document_ids = get_accessible_document_ids(user, organization=organization)
 
     if not accessible_document_ids:
         for citation in citations:
@@ -894,7 +910,7 @@ def resolve_topics_for_citations(user, citations):
     return citations
 
 
-def get_related_topics_for_citations(user, citations, limit=6):
+def get_related_topics_for_citations(user, citations, limit=6, organization=None):
     """
     Up to `limit` distinct entities mentioned in the cited chunks of an
     Ask AI answer, most-mentioned first - "Related Topics" for the
@@ -908,7 +924,7 @@ def get_related_topics_for_citations(user, citations, limit=6):
     if not citations:
         return []
 
-    accessible_document_ids = get_accessible_document_ids(user)
+    accessible_document_ids = get_accessible_document_ids(user, organization=organization)
 
     if not accessible_document_ids:
         return []
@@ -936,7 +952,7 @@ def get_related_topics_for_citations(user, citations, limit=6):
 # Knowledge Insights
 # ==========================================================================
 
-def get_knowledge_insights(user, dataset=None):
+def get_knowledge_insights(user, dataset=None, organization=None):
     """
     Read-only aggregates over the viewer's accessible knowledge - no
     LLM calls (that's Document Analysis, which belongs to AI Tasks, not
@@ -949,7 +965,7 @@ def get_knowledge_insights(user, dataset=None):
     """
 
     if dataset is None:
-        dataset = _build_topic_dataset(user)
+        dataset = _build_topic_dataset(user, organization=organization)
     accessible_document_ids = dataset["accessible_document_ids"]
 
     if not accessible_document_ids:
@@ -1109,9 +1125,15 @@ def get_document_knowledge(user, document):
     callers should already have checked
     document_access_service.can_view_document() before calling this,
     this is a defense-in-depth second check on the same rule.
+
+    Scopes itself to `document.organization` automatically, exactly
+    like can_view_document() does - a single document object is
+    already unambiguous about which workspace it belongs to, so there
+    is no separate "which scope am I asking about" a caller could get
+    wrong here.
     """
 
-    dataset = _build_topic_dataset(user)
+    dataset = _build_topic_dataset(user, organization=document.organization)
     accessible_document_ids = dataset["accessible_document_ids"]
 
     if document.id not in accessible_document_ids:
@@ -1150,7 +1172,7 @@ def get_document_knowledge(user, document):
     )
     similar_documents = _similar_documents_by_embedding(document, accessible_document_ids)
 
-    citations = [c for c in get_citation_explorer(user) if c["document"] == document.title][:20]
+    citations = [c for c in get_citation_explorer(user, organization=document.organization) if c["document"] == document.title][:20]
 
     return {
         "document": document,

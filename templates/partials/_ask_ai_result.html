@@ -133,39 +133,51 @@
       </div>
     {% endif %}
 
-    {% if result.sources %}
+    {% comment %}
+    Only sources the answer actually cited are shown here - retrieval
+    can pull in chunks the model ended up not using (or, since the
+    grounding rules now let an answer lean partly or fully on general
+    knowledge, plenty can go uncited), and listing every retrieved
+    chunk regardless made it look like content the answer never
+    touched was still "used". Each rendered card keys off
+    source.citation_number (its position in the original retrieval
+    order), not its position in this filtered loop, since that's the
+    number the [n] markers in the answer and scrollToSource() both
+    reference.
+    {% endcomment %}
+    {% if result.citations %}
       <div class="border-t border-line px-5 py-5 dark:border-line-dark">
         <h3 class="mb-3 text-xs font-semibold uppercase tracking-wide text-muted dark:text-muted-dark">Sources</h3>
         <div class="space-y-3">
           {% for source in result.sources %}
-            <div data-source-number="{{ forloop.counter }}" class="rounded-lg border border-line bg-surface p-3.5 transition-shadow dark:border-line-dark dark:bg-white/5">
-              <div class="mb-1.5 flex items-center justify-between gap-2">
-                <span class="flex min-w-0 items-center gap-1.5 truncate text-sm font-medium text-ink dark:text-ink-dark">
-                  <i class="ph ph-file-text text-[14px] shrink-0 text-primary dark:text-primary-soft"></i>
-                  <span class="truncate">{{ source.document }}</span> <span class="shrink-0 text-muted dark:text-muted-dark">· chunk {{ source.chunk_number }}</span>
-                </span>
-                <span class="flex shrink-0 items-center gap-1.5">
-                  {% if source.citation_number %}
+            {% if source.citation_number %}
+              <div data-source-number="{{ source.citation_number }}" class="rounded-lg border border-line bg-surface p-3.5 transition-shadow dark:border-line-dark dark:bg-white/5">
+                <div class="mb-1.5 flex items-center justify-between gap-2">
+                  <span class="flex min-w-0 items-center gap-1.5 truncate text-sm font-medium text-ink dark:text-ink-dark">
+                    <i class="ph ph-file-text text-[14px] shrink-0 text-primary dark:text-primary-soft"></i>
+                    <span class="truncate">{{ source.document }}</span> <span class="shrink-0 text-muted dark:text-muted-dark">· chunk {{ source.chunk_number }}</span>
+                  </span>
+                  <span class="flex shrink-0 items-center gap-1.5">
                     <span class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary dark:bg-primary-soft/10 dark:text-primary-soft">
                       Cited [{{ source.citation_number }}]
                     </span>
-                  {% endif %}
-                  <span class="rounded-full border border-line px-2 py-0.5 text-[11px] font-medium capitalize text-muted dark:border-line-dark dark:text-muted-dark">
-                    {{ source.search_type }}
+                    <span class="rounded-full border border-line px-2 py-0.5 text-[11px] font-medium capitalize text-muted dark:border-line-dark dark:text-muted-dark">
+                      {{ source.search_type }}
+                    </span>
                   </span>
-                </span>
+                </div>
+                <p
+                  class="text-xs text-muted dark:text-muted-dark"
+                  :class="!expandedSources[{{ source.citation_number }}] && 'line-clamp-2'"
+                >{{ source.content }}</p>
+                <button
+                  type="button"
+                  @click="toggleSource({{ source.citation_number }})"
+                  class="mt-1.5 text-[11px] font-semibold text-primary hover:underline dark:text-primary-soft"
+                  x-text="expandedSources[{{ source.citation_number }}] ? 'Show less' : 'Show more'"
+                ></button>
               </div>
-              <p
-                class="text-xs text-muted dark:text-muted-dark"
-                :class="!expandedSources[{{ forloop.counter }}] && 'line-clamp-2'"
-              >{{ source.content }}</p>
-              <button
-                type="button"
-                @click="toggleSource({{ forloop.counter }})"
-                class="mt-1.5 text-[11px] font-semibold text-primary hover:underline dark:text-primary-soft"
-                x-text="expandedSources[{{ forloop.counter }}] ? 'Show less' : 'Show more'"
-              ></button>
-            </div>
+            {% endif %}
           {% endfor %}
         </div>
       </div>

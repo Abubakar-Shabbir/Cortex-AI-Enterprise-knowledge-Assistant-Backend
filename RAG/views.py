@@ -115,6 +115,7 @@ from .services.permission_service import (
     has_any_settings_permission,
     is_admin,
     is_last_admin,
+    is_super_admin,
     user_has_permission,
 )
 from .services.retrieval_filters import RetrievalFilters
@@ -644,7 +645,7 @@ def documents_view(request):
                 log_activity(
                     actor=request.user,
                     action="document.org_library_added",
-                    description=f'"{document.title}" added to the Organization Library by {request.user.username}',
+                    description=f'A document was added to the Organization Library by {request.user.username}',
                     request=request,
                 )
 
@@ -720,7 +721,7 @@ def document_delete(request, doc_id):
         log_activity(
             actor=request.user,
             action="document.deleted",
-            description=f'"{title}" deleted by {request.user.username}',
+            description=f'A document was deleted by {request.user.username}',
             request=request,
         )
 
@@ -745,7 +746,7 @@ def document_archive_toggle(request, doc_id):
     log_activity(
         actor=request.user,
         action="document.archived" if document.is_archived else "document.unarchived",
-        description=f'"{document.title}" {"archived" if document.is_archived else "unarchived"} by {request.user.username}',
+        description=f'A document was {"archived" if document.is_archived else "unarchived"} by {request.user.username}',
         request=request,
     )
 
@@ -1106,7 +1107,7 @@ def org_library_toggle(request, doc_id):
         actor=request.user,
         action="document.org_library_added" if document.is_org_library else "document.org_library_removed",
         description=(
-            f'"{document.title}" {"added to" if document.is_org_library else "removed from"} '
+            f'A document was {"added to" if document.is_org_library else "removed from"} '
             f"the Organization Library by {request.user.username}"
         ),
         request=request,
@@ -1163,7 +1164,7 @@ def document_share(request, doc_id):
         log_activity(
             actor=request.user,
             action="document.shared",
-            description=f'"{document.title}" shared by {request.user.username}',
+            description=f'A document was shared by {request.user.username}',
             request=request,
         )
 
@@ -1179,7 +1180,7 @@ def document_share(request, doc_id):
                 actor=request.user,
                 notification_type="document.shared",
                 title=f"{request.user.username} shared a document with you",
-                message=f'"{document.title}" was shared with you.',
+                message='A document was shared with you.',
                 data={"document_id": document.id, "share_id": share.id},
                 action_url=notification_service.document_open_url(document.id),
             )
@@ -1191,7 +1192,7 @@ def document_share(request, doc_id):
                     actor=request.user,
                     notification_type="document.shared",
                     title=f"{request.user.username} shared a document with your role",
-                    message=f'"{document.title}" was shared with the {share.shared_with_role.name} role.',
+                    message=f'A document was shared with the {share.shared_with_role.name} role.',
                     data={"document_id": document.id, "share_id": share.id},
                     action_url=notification_service.document_open_url(document.id),
                 )
@@ -1253,7 +1254,7 @@ def document_share_revoke(request, share_id):
             actor=request.user,
             notification_type="document.access_revoked",
             title="Document access revoked",
-            message=f'Your access to "{document.title}" was revoked.',
+            message='Your access to a document was revoked.',
             data={"document_id": document.id},
         )
     elif role is not None:
@@ -1264,7 +1265,7 @@ def document_share_revoke(request, share_id):
                 actor=request.user,
                 notification_type="document.access_revoked",
                 title="Document access revoked",
-                message=f'Access to "{document.title}" (shared with the {role.name} role) was revoked.',
+                message=f'Access to a document (shared with the {role.name} role) was revoked.',
                 data={"document_id": document.id},
             )
 
@@ -1440,7 +1441,7 @@ def document_download(request, doc_id):
         log_activity(
             actor=request.user,
             action="document.downloaded",
-            description=f'"{document.title}" downloaded by {request.user.username}',
+            description=f'A document was downloaded by {request.user.username}',
             request=request,
         )
 
@@ -3352,7 +3353,7 @@ def ai_task_cancel(request, run_id):
 
     run = get_object_or_404(AITaskRun, id=run_id)
 
-    if run.user_id != request.user.id and not is_admin(request.user):
+    if run.user_id != request.user.id and not (is_admin(request.user) or is_super_admin(request.user)):
         raise PermissionDenied("You don't have access to this run.")
 
     if run.status not in (AITaskRun.Status.PENDING, AITaskRun.Status.RUNNING):
@@ -3394,7 +3395,7 @@ def ai_task_delete(request, run_id):
 
     run = get_object_or_404(AITaskRun, id=run_id)
 
-    if run.user_id != request.user.id and not is_admin(request.user):
+    if run.user_id != request.user.id and not (is_admin(request.user) or is_super_admin(request.user)):
         raise PermissionDenied("You don't have access to this run.")
 
     if run.status in (AITaskRun.Status.PENDING, AITaskRun.Status.RUNNING):

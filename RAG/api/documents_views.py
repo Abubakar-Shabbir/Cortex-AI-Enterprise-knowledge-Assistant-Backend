@@ -23,6 +23,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from ..models import Category, Collection, Document, DocumentAccessLog, DocumentShare, DocumentVersion, Favorite, Role, Tag, UserRole
+from ..services import billing_service
 from ..services.activity_log_service import log_activity
 from ..services.categories_service import list_categories
 from ..services.collections_service import add_document_to_collection, list_collections
@@ -30,6 +31,8 @@ from ..services.document_access_service import get_accessible_document_ids, get_
 from ..services.document_library_service import annotate_document_status, filter_and_sort_documents
 from ..services.favorites_service import favorite_ids_for, list_favorites, toggle_favorite
 from ..services import notification_service
+from ..services.org_audit_log_service import log_org_activity
+from ..services.org_permission_service import resolve_request_organization
 from ..services.permission_service import user_has_permission
 from ..services.preview_service import get_document_preview_text
 from ..services.sharing_service import create_share, list_documents_shared_with, list_shares_for_document, revoke_share
@@ -72,6 +75,35 @@ def _serialize_item_with_owner(item, **extra):
     }
 
 
+def _log_document_activity(document, request, action, description):
+    """
+    Fires both audit trails for one document event: the existing
+    platform-wide, actor-keyed ActivityLog (log_activity(), unchanged -
+    still the Activity tab every document event has always shown up
+    on), plus - only when the document actually belongs to an
+    organization - that organization's own OrganizationAuditLog
+    (log_org_activity()). A Personal Workspace document
+    (document.organization is None) only ever produces the first; an
+    org-owned document's lifecycle would otherwise never reach its own
+    organization's Audit Log page at all, which is the actual defect
+    behind "audit logs are broken" for document activity specifically -
+    the org audit pipeline itself (model -> service -> view -> frontend)
+    was already wired correctly, it just had no document call sites.
+    """
+
+    log_activity(actor=request.user, action=action, description=description, request=request)
+
+    if document.organization_id:
+        log_org_activity(
+            organization=document.organization,
+            actor=request.user,
+            action=action,
+            description=description,
+            metadata={"document_id": document.id, "document_title": document.title},
+            request=request,
+        )
+
+
 def _paginate_response(page_obj, paginator, results):
     return {
         "results": results,
@@ -86,7 +118,16 @@ def _paginate_response(page_obj, paginator, results):
 @api_view(["GET"])
 @permission_classes([HasPagePermission("pages.documents")])
 def documents_list_view(request):
-    owned = Document.objects.filter(user=request.user)
+    organization, _ = resolve_request_organization(request)
+
+    # "My Documents" is always strictly this user's own uploads in the
+    # active workspace - inside an organization exactly like inside
+    # Personal Workspace, never every document the tenant owns (a
+    # teammate's upload is private to them until they add it to the
+    # Organization Library - see document_access_service's module
+    # docstring). Org Library / Shared With Me are separate tabs/views
+    # for those other two document sets.
+    owned = Document.objects.filter(user=request.user, organization=organization)
 
     total_documents = owned.count()
     embedded_count = owned.annotate(embedded_chunks=Count("chunks__vector")).filter(
@@ -146,11 +187,19 @@ def document_upload_view(request):
         return Response({"error": "A file is required."}, status=400)
 
     title = os.path.splitext(file.name)[0][:200]
+    organization, _ = resolve_request_organization(request)
 
     try:
-        document = upload_document(user=request.user, title=title, file=file)
+        billing_service.check_storage_limit_for(organization, request.user, file.size)
+    except billing_service.UsageLimitExceeded as e:
+        return Response({"error": str(e), "code": "usage_limit_exceeded", "limit_type": e.limit_type}, status=402)
+
+    try:
+        document = upload_document(user=request.user, title=title, file=file, organization=organization)
     except ValueError as e:
         return Response({"error": str(e)}, status=400)
+
+    _log_document_activity(document, request, "document.uploaded", f'A document was uploaded by {request.user.username}')
 
     collection_id = request.data.get("collection_id")
     if collection_id:
@@ -161,11 +210,9 @@ def document_upload_view(request):
     if request.data.get("add_to_org_library") and user_has_permission(request.user, "documents.manage_org_library"):
         document.is_org_library = True
         document.save(update_fields=["is_org_library"])
-        log_activity(
-            actor=request.user,
-            action="document.org_library_added",
-            description=f'"{document.title}" added to the Organization Library by {request.user.username}',
-            request=request,
+        _log_document_activity(
+            document, request, "document.org_library_added",
+            f'A document was added to the Organization Library by {request.user.username}',
         )
 
     return Response({"id": document.id, "title": document.title}, status=201)
@@ -176,16 +223,18 @@ def document_upload_view(request):
 def document_delete_view(request, doc_id):
     document = get_object_or_404(Document, id=doc_id, user=request.user)
     title = document.title
+    organization = document.organization  # captured before delete() clears document.pk/id
 
     document.file.delete(save=False)
     document.delete()
 
-    log_activity(
-        actor=request.user,
-        action="document.deleted",
-        description=f'"{title}" deleted by {request.user.username}',
-        request=request,
-    )
+    description = f'A document was deleted by {request.user.username}'
+    log_activity(actor=request.user, action="document.deleted", description=description, request=request)
+    if organization is not None:
+        log_org_activity(
+            organization=organization, actor=request.user, action="document.deleted",
+            description=description, metadata={"document_id": doc_id, "document_title": title}, request=request,
+        )
 
     return Response(status=204)
 
@@ -243,11 +292,10 @@ def document_archive_toggle_view(request, doc_id):
     document.archived_at = timezone.now() if document.is_archived else None
     document.save(update_fields=["is_archived", "archived_at"])
 
-    log_activity(
-        actor=request.user,
-        action="document.archived" if document.is_archived else "document.unarchived",
-        description=f'"{document.title}" {"archived" if document.is_archived else "unarchived"} by {request.user.username}',
-        request=request,
+    _log_document_activity(
+        document, request,
+        "document.archived" if document.is_archived else "document.unarchived",
+        f'A document was {"archived" if document.is_archived else "unarchived"} by {request.user.username}',
     )
 
     return Response({"id": document.id, "is_archived": document.is_archived})
@@ -256,7 +304,8 @@ def document_archive_toggle_view(request, doc_id):
 @api_view(["POST"])
 @permission_classes([HasPagePermission("pages.documents")])
 def document_favorite_toggle_view(request, doc_id):
-    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user))
+    organization, _ = resolve_request_organization(request)
+    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user, organization=organization))
     is_fav = toggle_favorite(request.user, document)
     return Response({"id": document.id, "is_favorite": is_fav})
 
@@ -264,7 +313,8 @@ def document_favorite_toggle_view(request, doc_id):
 @api_view(["GET"])
 @permission_classes([HasPagePermission("pages.documents")])
 def document_preview_view(request, doc_id):
-    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user))
+    organization, _ = resolve_request_organization(request)
+    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user, organization=organization))
     DocumentAccessLog.objects.create(user=request.user, document=document)
     return Response(get_document_preview_text(document))
 
@@ -272,7 +322,8 @@ def document_preview_view(request, doc_id):
 @api_view(["GET"])
 @permission_classes([HasPagePermission("pages.documents")])
 def document_download_view(request, doc_id):
-    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user))
+    organization, _ = resolve_request_organization(request)
+    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user, organization=organization))
 
     if not document.file:
         raise Http404("File not found.")
@@ -284,7 +335,7 @@ def document_download_view(request, doc_id):
         log_activity(
             actor=request.user,
             action="document.downloaded",
-            description=f'"{document.title}" downloaded by {request.user.username}',
+            description=f'A document was downloaded by {request.user.username}',
             request=request,
         )
 
@@ -296,7 +347,8 @@ def document_download_view(request, doc_id):
 def select_documents_search_view(request):
     """JSON wrapper around RAG.views.select_documents_search - backs the shared SelectDocumentsDialog.jsx picker (AI Tasks, and anywhere else that needs to pick from the requester's accessible document set)."""
 
-    documents = get_accessible_documents(request.user).select_related("user")
+    organization, _ = resolve_request_organization(request)
+    documents = get_accessible_documents(request.user, organization=organization).select_related("user")
 
     q = request.query_params.get("q", "").strip()
     if q:
@@ -368,11 +420,28 @@ def shared_with_me_view(request):
 @api_view(["GET"])
 @permission_classes([HasPagePermission("pages.documents")])
 def org_library_view(request):
-    """Admin-managed Organization Library. Manage controls (toggle a document in/out) are gated behind "documents.manage_org_library", enforced for real in org_library_toggle_view below."""
+    """
+    Admin-managed Organization Library, scoped to the active workspace
+    - `organization=None` for Personal Workspace's own library (the
+    classic, pre-multi-tenancy feature this was originally built for),
+    a real Organization for that tenant's library. Previously had NO
+    scoping at all (`Document.objects.filter(is_org_library=True)`,
+    unconditionally global) - a real cross-tenant leak found during
+    the 2026-09-05 workspace-isolation audit: every organization's
+    library documents (titles, owners, content) were visible from
+    every OTHER organization's Org Library page, and the "add a
+    document" search below could surface (and let an org's admin
+    forcibly publish) a completely unrelated company's employee's
+    document. Manage controls (toggle a document in/out) are gated
+    behind "documents.manage_org_library", enforced for real in
+    org_library_toggle_view below - which now re-checks this same
+    `organization` scope per document, not just the permission.
+    """
 
+    organization, _ = resolve_request_organization(request)
     can_manage = user_has_permission(request.user, "documents.manage_org_library")
 
-    org_documents = Document.objects.filter(is_org_library=True)
+    org_documents = Document.objects.filter(is_org_library=True, organization=organization)
     total_org_documents = org_documents.count()
     total_org_storage = format_bytes(org_documents.aggregate(total=Sum("file_size"))["total"] or 0)
 
@@ -388,7 +457,9 @@ def org_library_view(request):
     if can_manage and add_query:
         add_candidates = [
             {"id": d.id, "title": d.title, "owner": d.user.username}
-            for d in Document.objects.filter(is_org_library=False, title__icontains=add_query).select_related("user")[:20]
+            for d in Document.objects.filter(
+                is_org_library=False, organization=organization, title__icontains=add_query,
+            ).select_related("user")[:20]
         ]
 
     return Response({
@@ -405,25 +476,32 @@ def org_library_view(request):
 @permission_classes([HasPagePermission("documents.manage_org_library")])
 def org_library_toggle_view(request, doc_id):
     """
-    Add/remove ANY document (not just one the actor can already see)
-    from the Organization Library - the "documents.manage_org_library"
-    permission gate above is the entire access boundary here, same as
-    the classic org_library_toggle view.
+    Add/remove a document from ITS OWN workspace's Organization Library
+    - scoped to the active workspace (`organization`, resolved the
+    same way org_library_view above does) so the permission gate can't
+    be used to reach into a workspace the actor isn't even acting in;
+    `get_object_or_404` 404s (not 403s) for a document outside it, the
+    same fail-closed-without-confirming-existence shape this codebase
+    uses for a forged org slug. Still "any document IN that workspace"
+    (not just one the actor personally uploaded) - the
+    "documents.manage_org_library" permission gate is the intended
+    access boundary for curating a workspace's own library, same as
+    the classic org_library_toggle view always allowed.
     """
 
-    document = get_object_or_404(Document, id=doc_id)
+    organization, _ = resolve_request_organization(request)
+    document = get_object_or_404(Document, id=doc_id, organization=organization)
 
     document.is_org_library = not document.is_org_library
     document.save(update_fields=["is_org_library"])
 
-    log_activity(
-        actor=request.user,
-        action="document.org_library_added" if document.is_org_library else "document.org_library_removed",
-        description=(
-            f'"{document.title}" {"added to" if document.is_org_library else "removed from"} '
+    _log_document_activity(
+        document, request,
+        "document.org_library_added" if document.is_org_library else "document.org_library_removed",
+        (
+            f'A document was {"added to" if document.is_org_library else "removed from"} '
             f"the Organization Library by {request.user.username}"
         ),
-        request=request,
     )
 
     return Response({"id": document.id, "is_org_library": document.is_org_library})
@@ -440,6 +518,8 @@ def documents_bulk_action_view(request):
     if not requested_ids:
         return Response({"error": "No documents selected."}, status=400)
 
+    organization, _ = resolve_request_organization(request)
+
     owner_only_actions = {"delete", "archive", "unarchive"}
     accessible_actions = {"favorite", "unfavorite", "add_to_collection"}
 
@@ -448,9 +528,9 @@ def documents_bulk_action_view(request):
         collection = get_object_or_404(Collection, id=request.data.get("collection_id"), user=request.user)
 
     if action in owner_only_actions:
-        scoped = list(Document.objects.filter(id__in=requested_ids, user=request.user))
+        scoped = list(Document.objects.filter(id__in=requested_ids, user=request.user, organization=organization))
     elif action in accessible_actions:
-        accessible_ids = get_accessible_document_ids(request.user)
+        accessible_ids = get_accessible_document_ids(request.user, organization=organization)
         scoped = list(Document.objects.filter(id__in=set(requested_ids) & accessible_ids))
     else:
         return Response({"error": "Unknown action."}, status=400)
@@ -481,12 +561,21 @@ def documents_bulk_action_view(request):
     skipped = [i for i in requested_ids if i not in succeeded]
 
     if succeeded:
-        log_activity(
-            actor=request.user,
-            action="document.bulk_action",
-            description=f'{request.user.username} applied bulk action "{action}" to {len(succeeded)} document(s)',
-            request=request,
-        )
+        description = f'{request.user.username} applied bulk action "{action}" to {len(succeeded)} document(s)'
+        log_activity(actor=request.user, action="document.bulk_action", description=description, request=request)
+        # owner_only_actions (delete/archive/unarchive) are all scoped to
+        # one resolved `organization` already (the queryset filter
+        # above); accessible_actions can span documents from outside
+        # the active workspace (Organization Library, shared-with-me),
+        # so this is necessarily an approximation for those - it
+        # records that the action happened while `organization` was the
+        # active workspace, not that every affected document belongs to
+        # it.
+        if organization is not None:
+            log_org_activity(
+                organization=organization, actor=request.user, action="document.bulk_action",
+                description=description, metadata={"document_ids": succeeded, "bulk_action": action}, request=request,
+            )
 
     return Response({"action": action, "succeeded": succeeded, "skipped": skipped})
 
@@ -533,7 +622,7 @@ def document_share_view(request, doc_id):
         log_activity(
             actor=request.user,
             action="document.shared",
-            description=f'"{document.title}" shared by {request.user.username}',
+            description=f'A document was shared by {request.user.username}',
             request=request,
         )
 
@@ -543,7 +632,7 @@ def document_share_view(request, doc_id):
                 actor=request.user,
                 notification_type="document.shared",
                 title=f"{request.user.username} shared a document with you",
-                message=f'"{document.title}" was shared with you.',
+                message='A document was shared with you.',
                 data={"document_id": document.id, "share_id": share.id},
                 action_url=notification_service.document_open_url(document.id),
             )
@@ -555,7 +644,7 @@ def document_share_view(request, doc_id):
                     actor=request.user,
                     notification_type="document.shared",
                     title=f"{request.user.username} shared a document with your role",
-                    message=f'"{document.title}" was shared with the {share.shared_with_role.name} role.',
+                    message=f'A document was shared with the {share.shared_with_role.name} role.',
                     data={"document_id": document.id, "share_id": share.id},
                     action_url=notification_service.document_open_url(document.id),
                 )
@@ -589,7 +678,7 @@ def document_share_revoke_view(request, share_id):
             actor=request.user,
             notification_type="document.access_revoked",
             title="Document access revoked",
-            message=f'Your access to "{document.title}" was revoked.',
+            message='Your access to a document was revoked.',
             data={"document_id": document.id},
         )
     elif role is not None:
@@ -600,7 +689,7 @@ def document_share_revoke_view(request, share_id):
                 actor=request.user,
                 notification_type="document.access_revoked",
                 title="Document access revoked",
-                message=f'Access to "{document.title}" (shared with the {role.name} role) was revoked.',
+                message=f'Access to a document (shared with the {role.name} role) was revoked.',
                 data={"document_id": document.id},
             )
 
@@ -610,7 +699,8 @@ def document_share_revoke_view(request, share_id):
 @api_view(["GET"])
 @permission_classes([HasPagePermission("pages.documents")])
 def document_versions_view(request, doc_id):
-    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user))
+    organization, _ = resolve_request_organization(request)
+    document = get_object_or_404(Document, id=doc_id, id__in=get_accessible_document_ids(request.user, organization=organization))
 
     versions = document.versions.all()
 
@@ -668,7 +758,8 @@ def document_version_upload_view(request, doc_id):
 @api_view(["GET"])
 @permission_classes([HasPagePermission("pages.documents")])
 def document_version_download_view(request, version_id):
-    version = get_object_or_404(DocumentVersion, id=version_id, document_id__in=get_accessible_document_ids(request.user))
+    organization, _ = resolve_request_organization(request)
+    version = get_object_or_404(DocumentVersion, id=version_id, document_id__in=get_accessible_document_ids(request.user, organization=organization))
 
     if not version.file:
         raise Http404("File not found.")

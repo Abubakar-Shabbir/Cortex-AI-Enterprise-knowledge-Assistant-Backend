@@ -19,13 +19,15 @@ from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from ..decorators import permission_required
+from ..decorators import org_feature_required, permission_required
 from ..models import AITaskRun, AITaskRunDocument
+from ..services import billing_service
 from ..services.activity_log_service import log_activity
 from ..services.document_access_service import get_accessible_document_ids
-from ..services.permission_service import is_admin
+from ..services.org_permission_service import resolve_request_organization
+from ..services.permission_service import is_admin, is_super_admin
 from ..services.reports_service import AI_TASK_RESULTS_HEADER, get_ai_task_result_rows
-from .permissions import HasPagePermission
+from .permissions import HasOrgFeatureAccess, HasPagePermission
 
 AI_TASKS_NEEDING_REFERENCE = {AITaskRun.TaskType.VALIDATE}
 AI_TASKS_ALLOWING_REFERENCE = {AITaskRun.TaskType.ANALYZE, AITaskRun.TaskType.VALIDATE}
@@ -60,7 +62,7 @@ def _serialize_result(result):
 
 
 @api_view(["GET"])
-@permission_classes([HasPagePermission("pages.ai_tasks")])
+@permission_classes([HasPagePermission("pages.ai_tasks"), HasOrgFeatureAccess("ai_tasks")])
 def ai_tasks_config_view(request):
     return Response({
         "task_types": [{"value": value, "label": label} for value, label in AITaskRun.TaskType.choices],
@@ -71,7 +73,7 @@ def ai_tasks_config_view(request):
 
 
 @api_view(["POST"])
-@permission_classes([HasPagePermission("pages.ai_tasks")])
+@permission_classes([HasPagePermission("pages.ai_tasks"), HasOrgFeatureAccess("ai_tasks")])
 def ai_task_create_view(request):
     task_type = request.data.get("task_type", "")
 
@@ -81,7 +83,8 @@ def ai_task_create_view(request):
     document_ids_raw = request.data.get("document_ids") or []
     reference_ids_raw = request.data.get("reference_document_ids") or []
 
-    accessible_ids = get_accessible_document_ids(request.user)
+    organization, _ = resolve_request_organization(request)
+    accessible_ids = get_accessible_document_ids(request.user, organization=organization)
 
     def _valid_ids(raw_ids):
         parsed = []
@@ -109,6 +112,14 @@ def ai_task_create_view(request):
     if task_type in AI_TASKS_NEEDING_REFERENCE and not reference_ids:
         return Response({"error": "This task requires at least one reference document."}, status=400)
 
+    ai_credit_cost = len(target_ids) * billing_service.AI_CREDIT_COST_PER_AI_TASK_DOCUMENT
+
+    try:
+        billing_service.check_ai_task_limit_for(organization, request.user)
+        billing_service.check_ai_credits_for(organization, request.user, ai_credit_cost)
+    except billing_service.UsageLimitExceeded as e:
+        return Response({"error": str(e), "code": "usage_limit_exceeded", "limit_type": e.limit_type}, status=402)
+
     config = request.data.get("config")
     if isinstance(config, str):
         try:
@@ -118,11 +129,17 @@ def ai_task_create_view(request):
     if not isinstance(config, dict):
         config = {}
 
-    run = AITaskRun.objects.create(user=request.user, task_type=task_type, config=config, document_count=len(target_ids))
+    run = AITaskRun.objects.create(
+        user=request.user, organization=organization, task_type=task_type, config=config, document_count=len(target_ids),
+    )
 
     AITaskRunDocument.objects.bulk_create(
         [AITaskRunDocument(run=run, document_id=doc_id, role=AITaskRunDocument.Role.TARGET) for doc_id in target_ids]
         + [AITaskRunDocument(run=run, document_id=doc_id, role=AITaskRunDocument.Role.REFERENCE) for doc_id in reference_ids]
+    )
+
+    billing_service.deduct_ai_credits_for(
+        organization, request.user, ai_credit_cost, f"AI Task run ({run.get_task_type_display()}, {len(target_ids)} document(s))", actor=request.user,
     )
 
     log_activity(
@@ -146,7 +163,7 @@ def ai_task_create_view(request):
 
 
 @api_view(["GET"])
-@permission_classes([HasPagePermission("pages.ai_tasks")])
+@permission_classes([HasPagePermission("pages.ai_tasks"), HasOrgFeatureAccess("ai_tasks")])
 def ai_task_status_view(request, run_id):
     run = get_object_or_404(AITaskRun, id=run_id, user=request.user)
 
@@ -163,7 +180,7 @@ def ai_task_status_view(request, run_id):
 def ai_task_cancel_view(request, run_id):
     run = get_object_or_404(AITaskRun, id=run_id)
 
-    if run.user_id != request.user.id and not is_admin(request.user):
+    if run.user_id != request.user.id and not (is_admin(request.user) or is_super_admin(request.user)):
         raise PermissionDenied("You don't have access to this run.")
 
     if run.status not in (AITaskRun.Status.PENDING, AITaskRun.Status.RUNNING):
@@ -182,7 +199,7 @@ def ai_task_cancel_view(request, run_id):
 def ai_task_delete_view(request, run_id):
     run = get_object_or_404(AITaskRun, id=run_id)
 
-    if run.user_id != request.user.id and not is_admin(request.user):
+    if run.user_id != request.user.id and not (is_admin(request.user) or is_super_admin(request.user)):
         raise PermissionDenied("You don't have access to this run.")
 
     if run.status in (AITaskRun.Status.PENDING, AITaskRun.Status.RUNNING):
@@ -203,7 +220,7 @@ def ai_task_delete_view(request, run_id):
 
 
 @api_view(["GET"])
-@permission_classes([HasPagePermission("pages.ai_tasks")])
+@permission_classes([HasPagePermission("pages.ai_tasks"), HasOrgFeatureAccess("ai_tasks")])
 def ai_task_results_view(request, run_id):
     run = get_object_or_404(AITaskRun, id=run_id, user=request.user)
 
@@ -219,9 +236,18 @@ def ai_task_results_view(request, run_id):
 
 
 @api_view(["GET"])
-@permission_classes([HasPagePermission("pages.ai_tasks")])
+@permission_classes([HasPagePermission("pages.ai_tasks"), HasOrgFeatureAccess("ai_tasks")])
 def ai_task_history_view(request):
-    runs = AITaskRun.objects.filter(user=request.user).order_by("-created_at")
+    organization, _ = resolve_request_organization(request)
+
+    if organization is not None:
+        # Same "tenant-shared, not per-uploader" scoping documents_list_view
+        # uses for an active organization workspace - every active
+        # member sees every run started inside that organization, not
+        # just their own.
+        runs = AITaskRun.objects.filter(organization=organization).order_by("-created_at")
+    else:
+        runs = AITaskRun.objects.filter(user=request.user, organization__isnull=True).order_by("-created_at")
 
     paginator = Paginator(runs, 15)
     page_obj = paginator.get_page(request.query_params.get("page"))
@@ -237,6 +263,7 @@ def ai_task_history_view(request):
 
 
 @permission_required("pages.ai_tasks")
+@org_feature_required("ai_tasks")
 def ai_task_export_view(request, run_id):
     """Plain Django view (not DRF) - streams a CSV file, same as RAG.views.ai_task_export."""
 

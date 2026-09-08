@@ -8,22 +8,29 @@ directly or branching on is_staff/is_superuser - so adding or changing
 a role later never means touching more than the seed data
 (RAG/management/commands/seed_rbac.py).
 
-There is no "Super Admin" tier. Admin is the sole built-in top-tier
-role and always has every permission (Role.has_permission's bypass in
-RAG/models.py) - every other role, including the built-in "user", is
-just data: created, edited, deleted, and granted permissions entirely
-through Admin > Roles, with zero code changes required.
+Admin is the sole built-in role with a hardcoded bypass
+(Role.has_permission's bypass in RAG/models.py) - it always has every
+permission regardless of its M2M rows. "Super Admin" is NOT a second
+bypass tier: it's an ordinary dynamic role, seeded by
+RAG/management/commands/seed_rbac.py with every permission except
+SENSITIVE_PERMISSIONS below, so what it can/can't see is entirely
+visible in its own M2M permission set - same as "user" or any future
+custom role, just with a much larger permission list. Every role other
+than Admin is just data: created, edited, deleted, and granted
+permissions entirely through Admin > Roles, with zero code changes
+required.
 """
 
 import logging
 
 from django.urls import reverse
 
-from ..models import ADMIN_ROLE_SLUG, USER_ROLE_SLUG, Role, UserRole
+from ..models import ADMIN_ROLE_SLUG, SUPER_ADMIN_ROLE_SLUG, USER_ROLE_SLUG, Role, UserRole
 
 logger = logging.getLogger(__name__)
 
 ADMIN = ADMIN_ROLE_SLUG
+SUPER_ADMIN = SUPER_ADMIN_ROLE_SLUG
 USER = USER_ROLE_SLUG
 
 # (slug, label, icon, codenames) - groups permissions into the feature
@@ -164,8 +171,21 @@ def user_has_role(user, *slugs):
 
 
 def is_admin(user):
-    """True only for the built-in Admin role - the sole top-tier role now that Super Admin has been removed."""
+    """True only for the built-in Admin role - the sole role with a hardcoded permission bypass."""
     return user_has_role(user, ADMIN)
+
+
+def is_super_admin(user):
+    """
+    True only for the built-in "Super Admin" role (see this module's
+    docstring - a dynamic role, not a second bypass tier). Exists as a
+    named helper for the handful of call sites that are role-slug-gated
+    rather than permission-codename-gated (e.g. canceling/deleting
+    another user's AI Task run - see RAG/api/ai_tasks_views.py) so that
+    narrow special-casing stays in one place instead of comparing role
+    slugs inline at each call site.
+    """
+    return user_has_role(user, SUPER_ADMIN)
 
 
 def user_has_permission(user, codename):
@@ -217,7 +237,9 @@ def get_user_permission_codenames(user):
 # "pages.*", "documents.*", and "analytics.view_all" are deliberately
 # excluded - those gate cross-user scope *within* an ordinary
 # workspace page (Documents, Analytics), not a separate /admin/ URL.
-ADMIN_AREA_PERMISSION_PREFIXES = ("users.", "roles.", "settings.", "system.", "activity.", "queries.", "notifications.")
+ADMIN_AREA_PERMISSION_PREFIXES = (
+    "users.", "roles.", "settings.", "system.", "activity.", "queries.", "notifications.", "organizations.",
+)
 
 
 def has_admin_area_access(user):

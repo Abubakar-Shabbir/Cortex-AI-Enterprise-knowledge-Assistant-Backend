@@ -36,7 +36,7 @@ import time
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-from .models import AIRequestTrace, AITaskRun, Document, Notification
+from .models import AIRequestTrace, AITaskRun, Document, Notification, OrganizationInvitation
 from .services.ai_tasks_engine_service import execute_run
 from .services.observability_service import save_trace
 from .services.system_config_service import apply_config_to_settings_cached
@@ -109,6 +109,29 @@ def _absolute_url(path):
     return settings.SITE_URL.rstrip("/") + path
 
 
+def _frontend_url(path):
+    """
+    Joins a relative path onto settings.FRONTEND_URL, for an email link
+    that must land on an SPA-only route (password reset, org invitation
+    accept, ...) - these are never Django URLs, so _absolute_url()
+    (SITE_URL, the Django origin) is the wrong join target for them.
+    `path` must match a real React Router route in frontend/src/App.jsx
+    exactly (no leading /app - the SPA's BrowserRouter has basename="/",
+    it isn't mounted under an /app prefix despite RAG/spa_views.py
+    serving a production build of it at Django's own /app/*, a fallback
+    path most deployments don't actually use - see Backend/CLAUDE.md's
+    Templates & frontend section).
+    """
+
+    from django.conf import settings
+
+    if not path:
+        return ""
+    if not settings.FRONTEND_URL:
+        return path
+    return settings.FRONTEND_URL.rstrip("/") + path
+
+
 def send_otp_email_task(user_id, raw_code, expires_at_iso):
     """
     Backgrounded OTP email send, dispatched by
@@ -160,7 +183,7 @@ def send_password_reset_email_task(user_id, uidb64, token, to_email):
     rather than receiving a pre-built URL, so this task is the one
     place that has to know the password_reset_confirm URL shape.
 
-    Points at the React SPA's /app/reset/<uidb64>/<token>/ route (see
+    Points at the React SPA's /reset/<uidb64>/<token>/ route (see
     frontend/src/pages/auth/PasswordResetConfirm.jsx + RAG/api/auth_views.py's
     password_reset_confirm_validate_view/password_reset_confirm_view),
     not the classic Django `password_reset_confirm` URL - the SPA is
@@ -178,7 +201,7 @@ def send_password_reset_email_task(user_id, uidb64, token, to_email):
         logger.error("send_password_reset_email_task: User %s no longer exists", user_id)
         return
 
-    reset_url = _absolute_url(f"/app/reset/{uidb64}/{token}/")
+    reset_url = _frontend_url(f"/reset/{uidb64}/{token}/")
 
     success, error = send_templated_email(
         to_email=to_email,
@@ -211,7 +234,7 @@ def send_share_invite_email_task(document_id, invited_email, sharer_username):
         logger.error("send_share_invite_email_task: Document %s no longer exists", document_id)
         return
 
-    signup_url = _absolute_url(f"/app/signup?invited_email={invited_email}")
+    signup_url = _frontend_url(f"/signup?invited_email={invited_email}")
 
     success, error = send_templated_email(
         to_email=invited_email,
@@ -227,6 +250,101 @@ def send_share_invite_email_task(document_id, invited_email, sharer_username):
 
     if not success:
         logger.error("send_share_invite_email_task: delivery failed for %s: %s", invited_email, error)
+
+
+def send_org_invitation_email_task(invitation_id):
+    """
+    Sent directly via email_service (not notification_service) for the
+    same reason send_share_invite_email_task is: the invited address
+    usually has no User row yet, and Notification.recipient is a
+    required FK. Re-fetches the invitation rather than trusting a
+    caller-passed snapshot, and bails out quietly if it's no longer
+    PENDING by the time this pool thread actually runs (revoked/
+    expired/already-accepted in the gap between the request and this
+    task executing) - sending an invite email for a dead invitation
+    would be actively misleading.
+    """
+
+    apply_config_to_settings_cached()
+
+    from .services.email_service import send_templated_email
+
+    try:
+        invitation = OrganizationInvitation.objects.select_related("organization", "invited_by").get(id=invitation_id)
+    except OrganizationInvitation.DoesNotExist:
+        logger.error("send_org_invitation_email_task: OrganizationInvitation %s no longer exists", invitation_id)
+        return
+
+    if invitation.status != OrganizationInvitation.Status.PENDING:
+        logger.info("send_org_invitation_email_task: invitation %s is no longer pending - skipping send", invitation_id)
+        return
+
+    accept_url = _frontend_url(f"/invitations/accept?token={invitation.token}")
+    inviter_username = invitation.invited_by.username if invitation.invited_by_id else "Someone"
+
+    success, error = send_templated_email(
+        to_email=invitation.email,
+        subject=f"You've been invited to join {invitation.organization.name}",
+        template_base="org_invitation",
+        context={
+            "site_name": _site_name(),
+            "inviter_username": inviter_username,
+            "organization_name": invitation.organization.name,
+            "role_display": invitation.get_role_display(),
+            "accept_url": accept_url,
+            "expires_at": invitation.expires_at,
+        },
+    )
+
+    if not success:
+        logger.error("send_org_invitation_email_task: delivery failed for %s: %s", invitation.email, error)
+
+
+def send_org_member_credentials_email_task(user_id, organization_id, raw_password):
+    """
+    Delivers a company-registered member's generated login credentials
+    - see org_member_registration_service.register_company_member(),
+    the only caller. `raw_password` is only ever held here, as a
+    function argument on a pool thread, exactly like send_otp_email_task's
+    `raw_code` - never logged, never written to the database (the User
+    row only ever stores the hashed password, set before this task was
+    even dispatched).
+    """
+
+    apply_config_to_settings_cached()
+
+    from .models import Organization
+    from .services.email_service import send_templated_email
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        logger.error("send_org_member_credentials_email_task: User %s no longer exists", user_id)
+        return
+
+    try:
+        organization = Organization.objects.get(id=organization_id)
+    except Organization.DoesNotExist:
+        logger.error("send_org_member_credentials_email_task: Organization %s no longer exists", organization_id)
+        return
+
+    login_url = _frontend_url("/login")
+
+    success, error = send_templated_email(
+        to_email=user.email,
+        subject=f"Your account for {organization.name}",
+        template_base="org_member_credentials",
+        context={
+            "site_name": _site_name(),
+            "organization_name": organization.name,
+            "username": user.username,
+            "password": raw_password,
+            "login_url": login_url,
+        },
+    )
+
+    if not success:
+        logger.error("send_org_member_credentials_email_task: delivery failed for %s: %s", user.email, error)
 
 
 def send_account_deleted_email_task(email, username):
@@ -401,6 +519,7 @@ def run_ai_task(run_id):
             trace_id,
             AIRequestTrace.Source.AI_TASK,
             run.user,
+            organization=run.organization,
             ai_task_run=run,
             status=trace_status,
             total_duration_ms=total_duration_ms,

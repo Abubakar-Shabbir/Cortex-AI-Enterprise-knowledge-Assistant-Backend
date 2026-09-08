@@ -18,12 +18,13 @@ from .graph_extraction_service import extract_graph, normalize_entity_key
 logger = logging.getLogger(__name__)
 
 
-def _get_or_create_entity(user, name: str, entity_type: str) -> Entity:
+def _get_or_create_entity(user, organization, name: str, entity_type: str) -> Entity:
 
     key = normalize_entity_key(name)
 
     entity, _ = Entity.objects.get_or_create(
         user=user,
+        organization=organization,
         name=key,
         entity_type=entity_type,
         defaults={"display_name": name},
@@ -36,6 +37,20 @@ def build_graph_for_chunk(chunk, user) -> None:
     """
     Extract entities/relationships from a single DocumentChunk and
     merge them into the user's knowledge graph.
+
+    `organization` is never a parameter here - it's always derived
+    from `chunk.document.organization`, exactly like
+    document_access_service.can_view_document() derives it from the
+    document rather than trusting a caller-supplied value: a chunk's
+    document is already unambiguous about which workspace its
+    extracted entities/relationships belong to (Entity/Relationship's
+    `(user, organization, name, entity_type)` uniqueness - see
+    models.py - so a Personal Workspace "Acme Corp" entity and an
+    organization's own "Acme Corp" entity for the same uploader never
+    collapse into one row and conflate their mention counts, even
+    though EntityMention -> chunk -> document is still the only real
+    access-control boundary graph_retrieval_service.py/
+    knowledge_service.py ever check).
 
     Safe to call repeatedly for the same chunk. Never raises - a
     failed or empty extraction just means no graph enrichment for
@@ -53,11 +68,11 @@ def build_graph_for_chunk(chunk, user) -> None:
     if not result.entities:
         return
 
-    _persist_graph(chunk, user, result)
+    _persist_graph(chunk, user, chunk.document.organization, result)
 
 
 @transaction.atomic
-def _persist_graph(chunk, user, result) -> None:
+def _persist_graph(chunk, user, organization, result) -> None:
     """
     Write the already-extracted entities/relationships to the
     database. Split out from build_graph_for_chunk() so the atomic
@@ -68,7 +83,7 @@ def _persist_graph(chunk, user, result) -> None:
 
     for extracted in result.entities:
 
-        entity = _get_or_create_entity(user, extracted.name, extracted.type)
+        entity = _get_or_create_entity(user, organization, extracted.name, extracted.type)
         entities_by_key[normalize_entity_key(extracted.name)] = entity
 
         _, mention_created = EntityMention.objects.get_or_create(
@@ -91,6 +106,7 @@ def _persist_graph(chunk, user, result) -> None:
 
         relationship, created = Relationship.objects.get_or_create(
             user=user,
+            organization=organization,
             source=source,
             target=target,
             relation_type=rel.relation,

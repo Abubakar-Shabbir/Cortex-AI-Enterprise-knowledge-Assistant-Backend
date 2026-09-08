@@ -134,11 +134,16 @@ def describe_search_method(retrieved_chunks):
     return "Hybrid (" + " + ".join(labels) + ")"
 
 
-def answer_question(question, user=None, filters=None):
+def answer_question(question, user=None, filters=None, organization=None):
     """
     Answer the user's question using
     PostgreSQL + pgvector retrieval, and log
     the interaction for history/analytics.
+
+    `organization` (default None = Personal Workspace) scopes both
+    retrieval (retrieve_chunks()) and the persisted QueryLog row to
+    that workspace - see retrieve_chunks()'s docstring for why nothing
+    downstream of it needs its own organization parameter.
     """
 
     start_time = time.perf_counter()
@@ -151,6 +156,7 @@ def answer_question(question, user=None, filters=None):
         question,
         user=user,
         filters=filters,
+        organization=organization,
     )
 
     # -------------------------
@@ -239,7 +245,7 @@ def answer_question(question, user=None, filters=None):
 
         "table": extras.get("table"),
 
-        "related_topics": get_related_topics_for_citations(user, citations) if user is not None else [],
+        "related_topics": get_related_topics_for_citations(user, citations, organization=organization) if user is not None else [],
 
     }
 
@@ -269,6 +275,8 @@ def answer_question(question, user=None, filters=None):
 
             confidence=confidence,
 
+            organization=organization,
+
         )
 
     # -------------------------
@@ -286,6 +294,7 @@ def answer_question(question, user=None, filters=None):
             trace_id,
             AIRequestTrace.Source.ASK_AI,
             user,
+            organization=organization,
             query_log=log,
             status=(
                 AIRequestTrace.Status.FAILED
@@ -300,7 +309,7 @@ def answer_question(question, user=None, filters=None):
     return result
 
 
-def answer_question_stream(question, user=None, filters=None):
+def answer_question_stream(question, user=None, filters=None, organization=None):
     """
     Streaming counterpart to answer_question(), for RAG.views.ask_ai_stream.
 
@@ -332,7 +341,7 @@ def answer_question_stream(question, user=None, filters=None):
 
     start_time = time.perf_counter()
 
-    retrieved_chunks = retrieve_chunks(question, user=user, filters=filters)
+    retrieved_chunks = retrieve_chunks(question, user=user, filters=filters, organization=organization)
 
     with timed_stage("context assembly", chunks=len(retrieved_chunks), compression=settings.ENABLE_CONTEXT_COMPRESSION):
 
@@ -412,7 +421,7 @@ def answer_question_stream(question, user=None, filters=None):
 
         "table": None,
 
-        "related_topics": get_related_topics_for_citations(user, citations) if user is not None else [],
+        "related_topics": get_related_topics_for_citations(user, citations, organization=organization) if user is not None else [],
 
     }
 
@@ -438,6 +447,8 @@ def answer_question_stream(question, user=None, filters=None):
 
             confidence=confidence,
 
+            organization=organization,
+
         )
 
     trace_id = result["trace_id"]
@@ -447,6 +458,7 @@ def answer_question_stream(question, user=None, filters=None):
             trace_id,
             AIRequestTrace.Source.ASK_AI,
             user,
+            organization=organization,
             query_log=log,
             status=AIRequestTrace.Status.FAILED if service_unavailable else AIRequestTrace.Status.COMPLETED,
             total_duration_ms=response_time_ms,

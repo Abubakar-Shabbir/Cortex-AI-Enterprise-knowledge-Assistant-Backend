@@ -211,7 +211,7 @@ def _submit_timed(executor, label, fn, *args, **kwargs):
     return executor.submit(ctx.run, _run_timed, label, fn, *args, **kwargs)
 
 
-def _retrieval_cache_key(question, user, filters, effective_top_k):
+def _retrieval_cache_key(question, user, filters, effective_top_k, organization=None):
     """
     Cache key for a full retrieve_chunks() result - identical (question,
     user, filters, top_k) reuses it rather than recomputing embed+BM25+
@@ -227,6 +227,12 @@ def _retrieval_cache_key(question, user, filters, effective_top_k):
     value) - without them in the key, an Admin toggling e.g. ENABLE_RERANKER
     had no visible effect on a repeated question until the previous
     (pre-toggle) cached entry aged out past settings.RETRIEVAL_CACHE_TTL.
+
+    `organization` is also part of the key (not folded into `user`) -
+    the same user asking the identical question in Personal Workspace
+    vs. an organization workspace must never share a cached result;
+    the accessible document set (and therefore every retrieved chunk)
+    is completely different between the two.
     """
 
     flag_fingerprint = (
@@ -235,12 +241,15 @@ def _retrieval_cache_key(question, user, filters, effective_top_k):
         f"|{settings.ENABLE_MULTI_QUERY}:{settings.MULTI_QUERY_VARIANTS}"
         f"|{settings.ENABLE_RERANKER}:{settings.RERANKER_CANDIDATE_MULTIPLIER}"
     )
-    raw = f"{question}|{user.id if user else 'anon'}|{filters!r}|{effective_top_k}|{flag_fingerprint}"
+    raw = (
+        f"{question}|{user.id if user else 'anon'}|{organization.id if organization else 'personal'}"
+        f"|{filters!r}|{effective_top_k}|{flag_fingerprint}"
+    )
 
     return "retrieve_chunks:" + hashlib.sha256(raw.encode()).hexdigest()
 
 
-def retrieve_chunks(question, user=None, filters=None, top_k=None):
+def retrieve_chunks(question, user=None, filters=None, top_k=None, organization=None):
     """
     Hybrid Retrieval
     Vector Search + BM25 + Knowledge Graph, optionally enriched with
@@ -254,6 +263,14 @@ def retrieve_chunks(question, user=None, filters=None, top_k=None):
     caller override retrieval depth directly; when omitted it's
     settings.ENABLE_DYNAMIC_TOP_K-dependent (dynamic heuristic or the
     fixed settings.TOP_K).
+
+    `organization` (default None = Personal Workspace) is the ONE
+    place multi-tenancy enters the retrieval pipeline: it's forwarded
+    only into the single get_accessible_document_ids() call below, and
+    every source (vector/BM25/graph/HyDE/multi-query) already accepts
+    that computed `accessible_document_ids` as an override rather than
+    re-deriving it - so none of those individual functions need their
+    own `organization` parameter to be correctly tenant-scoped here.
 
     Every independent source (vector/BM25/graph, plus HyDE/multi-query
     when enabled) runs concurrently rather than one after another -
@@ -273,7 +290,7 @@ def retrieve_chunks(question, user=None, filters=None, top_k=None):
         else settings.TOP_K
     )
 
-    cache_key = _retrieval_cache_key(question, user, filters, effective_top_k)
+    cache_key = _retrieval_cache_key(question, user, filters, effective_top_k, organization=organization)
     cached = cache.get(cache_key)
 
     if cached is not None:
@@ -284,7 +301,7 @@ def retrieve_chunks(question, user=None, filters=None, top_k=None):
     # below instead of each source independently re-running the same
     # "which documents can this user see" query - previously 3+ identical
     # queries per question (more with HyDE/multi-query enabled).
-    accessible_document_ids = get_accessible_document_ids(user) if user is not None else None
+    accessible_document_ids = get_accessible_document_ids(user, organization=organization) if user is not None else None
 
     # When reranking is enabled, over-fetch a larger candidate pool
     # from each source so the reranker has real alternatives to

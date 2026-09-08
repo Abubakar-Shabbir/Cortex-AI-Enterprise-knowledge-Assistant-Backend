@@ -35,13 +35,21 @@ AI_TASK_RESULTS_HEADER = [
 ]
 
 
-def get_documents_report_rows(user):
+def get_documents_report_rows(user, organization=None):
     """
-    One row per document owned by `user`, most recently uploaded
-    first.
+    One row per document in the active workspace, most recently
+    uploaded first. `organization=None` (Personal Workspace) scopes to
+    `user`'s own documents; a real Organization scopes to every
+    document in that tenant - same "tenant-shared, not per-uploader"
+    rule documents_views.documents_list_view already applies for an
+    active organization workspace.
     """
 
-    documents = Document.objects.filter(user=user).order_by("-uploaded_at")
+    documents = (
+        Document.objects.filter(organization=organization)
+        if organization is not None
+        else Document.objects.filter(user=user, organization__isnull=True)
+    ).order_by("-uploaded_at")
 
     return [
         [
@@ -55,12 +63,16 @@ def get_documents_report_rows(user):
     ]
 
 
-def get_usage_report_rows(user):
+def get_usage_report_rows(user, organization=None):
     """
-    One row per question `user` has asked, most recent first.
+    One row per question `user` has asked in the active workspace,
+    most recent first. QueryLog is inherently personal ("questions I
+    asked" - see knowledge_service.get_citation_explorer()'s docstring
+    for the same rule), so this always filters by `user` regardless of
+    `organization`.
     """
 
-    logs = QueryLog.objects.filter(user=user).order_by("-created_at")
+    logs = QueryLog.objects.filter(user=user, organization=organization).order_by("-created_at")
 
     return [
         [
@@ -161,15 +173,21 @@ def get_ai_task_result_rows(run):
     return rows
 
 
-def get_ai_task_runs_report_rows(user):
+def get_ai_task_runs_report_rows(user, organization=None):
     """
-    One row per AITaskRun `user` has ever started, most recent first -
+    One row per AITaskRun in the active workspace, most recent first -
     the AI Tasks counterpart to the Usage Report, but at the run level
     rather than the per-result level get_ai_task_result_rows()/
-    ai_task_export already covers for a single run.
+    ai_task_export already covers for a single run. Same tenant-shared
+    scoping as ai_tasks_views.ai_task_history_view for an active
+    organization workspace.
     """
 
-    runs = AITaskRun.objects.filter(user=user).order_by("-created_at")
+    runs = (
+        AITaskRun.objects.filter(organization=organization)
+        if organization is not None
+        else AITaskRun.objects.filter(user=user, organization__isnull=True)
+    ).order_by("-created_at")
 
     return [
         [
@@ -185,9 +203,9 @@ def get_ai_task_runs_report_rows(user):
     ]
 
 
-def get_knowledge_topics_report_rows(user):
+def get_knowledge_topics_report_rows(user, organization=None):
     """
-    One row per Topic visible to `user` (see
+    One row per Topic visible to `user` in the active workspace (see
     knowledge_service.list_all_topics - the same accessible-scoped,
     cross-uploader-merged Topic list Explore Topics itself uses), most
     mentioned first.
@@ -203,5 +221,5 @@ def get_knowledge_topics_report_rows(user):
             topic["document_count"],
             topic["member_count"],
         ]
-        for topic in list_all_topics(user)
+        for topic in list_all_topics(user, organization=organization)
     ]

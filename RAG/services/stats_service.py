@@ -2,23 +2,62 @@ from collections import Counter, defaultdict
 from datetime import timedelta
 
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.db import connection
-from django.db.models import Avg, Count, Sum
+from django.db.models import Avg, Count, Max, Q, Sum
 from django.utils import timezone
 
-from ..models import ActivityLog, AITaskRun, ChunkEmbedding, Document, DocumentChunk, QueryLog
+from ..models import (
+    ActivityLog, AITaskRun, ChunkEmbedding, Document, DocumentChunk,
+    Organization, OrganizationMembership, QueryLog,
+)
 from ..utils.formatting import format_bytes, format_ms
 from .knowledge_service import get_knowledge_overview, search_topics
 
 
-def get_dashboard_stats(user):
+def _workspace_scope(model, user, organization, scope_to_own=False):
     """
-    Real aggregate numbers for the dashboard
-    stat cards, scoped to the current user.
+    The one place every dashboard/analytics aggregate below decides
+    which rows belong to the current workspace. Inside an Organization
+    Workspace, the workspace's numbers are the WHOLE organization's
+    activity (every member's documents/questions/runs) - matching
+    organization_stats_view/billing_service.get_organization_usage(),
+    which already aggregate this way - not just the viewing user's own
+    slice of it. Inside Personal Workspace (`organization=None`), it's
+    the opposite: only this user's own rows, and only the ones with no
+    organization at all (`organization__isnull=True`) - a user's
+    organization-owned documents must never inflate their Personal
+    Workspace's numbers, the same leak `get_dashboard_stats()` had
+    before this function existed (it filtered by `user=user` alone,
+    which is every org this user has ever uploaded to, merged with
+    Personal, with no way to tell them apart).
+
+    `scope_to_own=True` further narrows an Organization Workspace down
+    to just `user`'s own rows within it - used for a plain Member's
+    Overview (dashboard_view), which must not leak the rest of the
+    company's activity. Owner/Personal callers never pass this, so
+    their whole-org / own-Personal-rows behavior is unchanged.
     """
 
-    documents = Document.objects.filter(user=user)
-    logs = QueryLog.objects.filter(user=user)
+    if organization is not None:
+        qs = model.objects.filter(organization=organization)
+        if scope_to_own:
+            qs = qs.filter(user=user)
+        return qs
+    return model.objects.filter(user=user, organization__isnull=True)
+
+
+def get_dashboard_stats(user, organization=None, scope_to_own=False):
+    """
+    Real aggregate numbers for the dashboard stat cards, scoped to the
+    active workspace - the whole organization when `organization` is
+    set (unless `scope_to_own` narrows it to just this user's rows,
+    for a Member's Overview), otherwise this user's own Personal
+    Workspace rows only.
+    """
+
+    documents = _workspace_scope(Document, user, organization, scope_to_own)
+    logs = _workspace_scope(QueryLog, user, organization, scope_to_own)
 
     today = timezone.localdate()
 
@@ -27,22 +66,46 @@ def get_dashboard_stats(user):
 
     return {
         "total_documents": documents.count(),
-        "total_chunks": DocumentChunk.objects.filter(document__user=user).count(),
+        "total_chunks": DocumentChunk.objects.filter(document__in=documents).count(),
         "questions_asked": logs.count(),
         "today_queries": logs.filter(created_at__date=today).count(),
         "avg_response_time": format_ms(round(avg_response)),
         "storage_used": format_bytes(storage_bytes),
         "last_upload": documents.order_by("-uploaded_at").first(),
-        "ai_task_runs": AITaskRun.objects.filter(user=user).count(),
+        "ai_task_runs": _workspace_scope(AITaskRun, user, organization, scope_to_own).count(),
     }
 
 
-def get_recent_activity(user, limit=5):
+def get_recent_activity(user, organization=None, limit=5, scope_to_own=False):
 
     return {
-        "recent_documents": Document.objects.filter(user=user).order_by("-uploaded_at")[:limit],
-        "recent_questions": QueryLog.objects.filter(user=user).order_by("-created_at")[:limit],
-        "recent_ai_task_runs": AITaskRun.objects.filter(user=user).order_by("-created_at")[:limit],
+        "recent_documents": _workspace_scope(Document, user, organization, scope_to_own).order_by("-uploaded_at")[:limit],
+        "recent_questions": _workspace_scope(QueryLog, user, organization, scope_to_own).order_by("-created_at")[:limit],
+        "recent_ai_task_runs": _workspace_scope(AITaskRun, user, organization, scope_to_own).order_by("-created_at")[:limit],
+    }
+
+
+def get_my_activity_summary(user, organization):
+    """
+    The viewing user's OWN slice of an Organization Workspace's
+    activity - gives a Company Owner a personal "Your Activity"
+    section alongside the whole-org numbers organization_stats_view
+    already reports, reusing the same scope_to_own=True narrowing a
+    plain Member's dashboard_view uses (see _workspace_scope()). A
+    plain serializable dict, unlike get_dashboard_stats' last_upload
+    (a Document instance) - this is meant to go straight into a
+    Response body.
+    """
+
+    documents = _workspace_scope(Document, user, organization, scope_to_own=True)
+    logs = _workspace_scope(QueryLog, user, organization, scope_to_own=True)
+    storage_bytes = documents.aggregate(total=Sum("file_size"))["total"] or 0
+
+    return {
+        "documents": documents.count(),
+        "questions_asked": logs.count(),
+        "storage_used": format_bytes(storage_bytes),
+        "ai_task_runs": _workspace_scope(AITaskRun, user, organization, scope_to_own=True).count(),
     }
 
 
@@ -62,17 +125,19 @@ def get_activity_summary(user):
     }
 
 
-def get_dashboard_insights(user):
+def get_dashboard_insights(user, organization=None):
     """
     Smart Insights / Recommendations for the dashboard - a handful of
-    computed-not-fabricated observations from the user's own
-    Document/QueryLog/Entity data. Nothing here is LLM-generated or
-    sampled; every number is a real aggregate, and a card is only
-    included when there's real data behind it.
+    computed-not-fabricated observations from the active workspace's
+    own Document/QueryLog/Entity data (the whole organization's, or
+    just this user's Personal Workspace - see _workspace_scope()).
+    Nothing here is LLM-generated or sampled; every number is a real
+    aggregate, and a card is only included when there's real data
+    behind it.
     """
 
-    documents = Document.objects.filter(user=user)
-    logs = QueryLog.objects.filter(user=user)
+    documents = _workspace_scope(Document, user, organization)
+    logs = _workspace_scope(QueryLog, user, organization)
 
     insights = []
     recommendations = []
@@ -145,7 +210,7 @@ def get_dashboard_insights(user):
     # shared-with-them documents - not just ones they personally
     # uploaded. See the Knowledge Center's scoping-fix for why
     # Entity.user alone under-represents what a user can actually see.
-    top_topics = search_topics(user, page=1)
+    top_topics = search_topics(user, page=1, organization=organization)
     top_topic = top_topics.object_list[0] if top_topics.object_list else None
     if top_topic:
         recommendations.append({
@@ -162,10 +227,11 @@ def get_dashboard_insights(user):
     }
 
 
-def get_analytics_data(user, days=14, knowledge_overview=None):
+def get_analytics_data(user, days=14, knowledge_overview=None, organization=None):
     """
-    Aggregates built entirely from real Document
-    and QueryLog rows - no synthetic data.
+    Aggregates built entirely from real Document and QueryLog rows -
+    no synthetic data - scoped to the active workspace (see
+    _workspace_scope()).
 
     `knowledge_overview`, when provided, is used as-is instead of
     calling get_knowledge_overview(user) again - lets a caller that
@@ -178,12 +244,16 @@ def get_analytics_data(user, days=14, knowledge_overview=None):
     today = timezone.localdate()
     start_date = today - timedelta(days=days - 1)
 
+    logs_qs = _workspace_scope(QueryLog, user, organization)
+    documents_qs = _workspace_scope(Document, user, organization)
+    ai_tasks_qs = _workspace_scope(AITaskRun, user, organization)
+
     questions_by_day = Counter()
     confidence_by_day = defaultdict(list)
     response_time_by_day = defaultdict(list)
 
-    for created_at, confidence, response_time_ms in QueryLog.objects.filter(
-        user=user, created_at__date__gte=start_date
+    for created_at, confidence, response_time_ms in logs_qs.filter(
+        created_at__date__gte=start_date
     ).values_list("created_at", "confidence", "response_time_ms"):
         day = timezone.localtime(created_at).date()
         questions_by_day[day] += 1
@@ -192,16 +262,16 @@ def get_analytics_data(user, days=14, knowledge_overview=None):
 
     uploads_by_day = Counter()
 
-    for uploaded_at in Document.objects.filter(
-        user=user, uploaded_at__date__gte=start_date
+    for uploaded_at in documents_qs.filter(
+        uploaded_at__date__gte=start_date
     ).values_list("uploaded_at", flat=True):
         uploads_by_day[timezone.localtime(uploaded_at).date()] += 1
 
     ai_tasks_by_day = Counter()
     ai_task_status_counts = Counter()
 
-    for created_at, status in AITaskRun.objects.filter(
-        user=user, created_at__date__gte=start_date
+    for created_at, status in ai_tasks_qs.filter(
+        created_at__date__gte=start_date
     ).values_list("created_at", "status"):
         ai_tasks_by_day[timezone.localtime(created_at).date()] += 1
         ai_task_status_counts[status] += 1
@@ -227,24 +297,24 @@ def get_analytics_data(user, days=14, knowledge_overview=None):
     ai_task_status_values = list(ai_task_status_counts.values()) or [0]
 
     if knowledge_overview is None:
-        knowledge_overview = get_knowledge_overview(user)
+        knowledge_overview = get_knowledge_overview(user, organization=organization)
 
-    top_docs = Document.objects.filter(user=user).order_by("-chunk_count")[:8]
+    top_docs = documents_qs.order_by("-chunk_count")[:8]
 
     search_type_counts = Counter()
 
-    for source_list in QueryLog.objects.filter(user=user).values_list("sources", flat=True):
+    for source_list in logs_qs.values_list("sources", flat=True):
         for source in source_list or []:
             search_type_counts[source.get("search_type", "unknown")] += 1
 
     storage_by_type = defaultdict(int)
 
-    for file_type, file_size in Document.objects.filter(user=user).values_list(
+    for file_type, file_size in documents_qs.values_list(
         "file_type", "file_size"
     ):
         storage_by_type[(file_type or "other").upper()] += file_size or 0
 
-    avg_response = QueryLog.objects.filter(user=user).aggregate(
+    avg_response = logs_qs.aggregate(
         avg=Avg("response_time_ms")
     )["avg"] or 0
 
@@ -259,7 +329,7 @@ def get_analytics_data(user, days=14, knowledge_overview=None):
         ("Low (0-39%)", 0, 40, "#C13515"),
     ]
     all_confidences = list(
-        QueryLog.objects.filter(user=user).values_list("confidence", flat=True)
+        logs_qs.values_list("confidence", flat=True)
     )
     confidence_distribution_labels = []
     confidence_distribution_values = []
@@ -276,8 +346,8 @@ def get_analytics_data(user, days=14, knowledge_overview=None):
     weekday_window_start = today - timedelta(days=89)
     weekday_labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     weekday_counts = [0] * 7
-    for created_at in QueryLog.objects.filter(
-        user=user, created_at__date__gte=weekday_window_start
+    for created_at in logs_qs.filter(
+        created_at__date__gte=weekday_window_start
     ).values_list("created_at", flat=True):
         weekday_counts[timezone.localtime(created_at).weekday()] += 1
 
@@ -311,15 +381,15 @@ def get_analytics_data(user, days=14, knowledge_overview=None):
     }
 
 
-def get_comparison_report_data(user, days=14):
+def get_comparison_report_data(user, days=14, organization=None):
     """
     Period-over-period comparison (the last `days` days vs. the
     `days` immediately before that) across the headline usage metrics
     - backs the Reports page's Comparative Report. Every figure is a
-    live aggregate over the user's own Document/QueryLog rows, reusing
-    the same _period_change() helper get_kpi_trends() already uses for
-    the Dashboard's trend badges, just over a configurable window
-    instead of a fixed 7 days.
+    live aggregate over the active workspace's own Document/QueryLog
+    rows (see _workspace_scope()), reusing the same _period_change()
+    helper get_kpi_trends() already uses for the Dashboard's trend
+    badges, just over a configurable window instead of a fixed 7 days.
     """
 
     today = timezone.localdate()
@@ -327,9 +397,9 @@ def get_comparison_report_data(user, days=14):
     previous_start = current_start - timedelta(days=days)
     previous_end = current_start - timedelta(days=1)
 
-    documents_qs = Document.objects.filter(user=user)
-    logs_qs = QueryLog.objects.filter(user=user)
-    ai_tasks_qs = AITaskRun.objects.filter(user=user)
+    documents_qs = _workspace_scope(Document, user, organization)
+    logs_qs = _workspace_scope(QueryLog, user, organization)
+    ai_tasks_qs = _workspace_scope(AITaskRun, user, organization)
 
     current_documents = documents_qs.filter(uploaded_at__date__gte=current_start)
     previous_documents = documents_qs.filter(uploaded_at__date__range=(previous_start, previous_end))
@@ -486,17 +556,22 @@ DOCUMENT_TYPE_COLORS = {
 DOCUMENT_TYPE_OTHER_COLOR = "#A3A3A3"
 
 
-def get_document_type_breakdown(user):
+def get_document_type_breakdown(user, organization=None, scope_to_own=False):
     """
-    Document count by file type, for the Document Types donut chart.
-    Anything outside PDF/DOCX/TXT collapses into "Other" so the chart
-    stays readable regardless of how many distinct extensions a user
-    has uploaded.
+    Document count by file type, for the Document Types donut chart -
+    scoped to the active workspace (see _workspace_scope()). Anything
+    outside PDF/DOCX/TXT collapses into "Other" so the chart stays
+    readable regardless of how many distinct extensions have been
+    uploaded.
+
+    `scope_to_own` mirrors get_dashboard_stats()'s param - a plain
+    Member's Overview passes it so this chart reflects only their own
+    uploads, not the rest of the company's.
     """
 
     counts = Counter(
         (file_type or "OTHER").upper()
-        for file_type in Document.objects.filter(user=user).values_list("file_type", flat=True)
+        for file_type in _workspace_scope(Document, user, organization, scope_to_own).values_list("file_type", flat=True)
     )
 
     known_types = ["PDF", "DOCX", "TXT"]
@@ -519,24 +594,30 @@ def get_document_type_breakdown(user):
     return {"breakdown": breakdown, "total": total}
 
 
-def get_documents_over_time(user, days=7):
+def get_documents_over_time(user, days=7, organization=None, scope_to_own=False):
     """
     Two aligned series for the "Documents Over Time" chart, over the
     last `days` days: `series` is the cumulative running total
     (workspace growth, the line) and `daily` is same-day new uploads
     (the bar overlay) - both derived from one query (`daily_counts`),
-    so plotting both costs nothing extra over the line alone.
+    so plotting both costs nothing extra over the line alone. Scoped
+    to the active workspace (see _workspace_scope()).
+
+    `scope_to_own` mirrors get_dashboard_stats()'s param - a plain
+    Member's Overview passes it so this chart tracks only their own
+    uploads, not the rest of the company's.
     """
 
     today = timezone.localdate()
     start_date = today - timedelta(days=days - 1)
+    documents_qs = _workspace_scope(Document, user, organization, scope_to_own)
 
-    running_total = Document.objects.filter(user=user, uploaded_at__date__lt=start_date).count()
+    running_total = documents_qs.filter(uploaded_at__date__lt=start_date).count()
 
     daily_counts = Counter(
         timezone.localtime(uploaded_at).date()
-        for uploaded_at in Document.objects.filter(
-            user=user, uploaded_at__date__gte=start_date
+        for uploaded_at in documents_qs.filter(
+            uploaded_at__date__gte=start_date
         ).values_list("uploaded_at", flat=True)
     )
 
@@ -578,13 +659,18 @@ def _period_change(current, previous):
     return round(pct, 1), ("up" if pct >= 0 else "down")
 
 
-def get_kpi_trends(user):
+def get_kpi_trends(user, organization=None, scope_to_own=False):
     """
     Trend badge (% change vs. the prior period) and a 7-point daily
     sparkline for each Dashboard KPI card. Documents/Chunks/Storage
     compare the last 7 days against the 7 days before that; Queries
     compares today against yesterday - matching the "vs" label shown
-    next to each figure on the card.
+    next to each figure on the card. Scoped to the active workspace
+    (see _workspace_scope()).
+
+    `scope_to_own` mirrors get_dashboard_stats()'s param - a plain
+    Member's Overview passes it so every trend/sparkline here tracks
+    only their own rows, not the rest of the company's.
     """
 
     today = timezone.localdate()
@@ -605,10 +691,10 @@ def get_kpi_trends(user):
             totals[timezone.localtime(date_value).date()] += amount or 0
         return [totals.get(window_start + timedelta(days=i), 0) for i in range(7)]
 
-    documents_qs = Document.objects.filter(user=user)
-    chunks_qs = DocumentChunk.objects.filter(document__user=user)
-    logs_qs = QueryLog.objects.filter(user=user)
-    ai_tasks_qs = AITaskRun.objects.filter(user=user)
+    documents_qs = _workspace_scope(Document, user, organization, scope_to_own)
+    chunks_qs = DocumentChunk.objects.filter(document__in=documents_qs)
+    logs_qs = _workspace_scope(QueryLog, user, organization, scope_to_own)
+    ai_tasks_qs = _workspace_scope(AITaskRun, user, organization, scope_to_own)
 
     recent_documents = documents_qs.filter(uploaded_at__date__gte=window_start)
     recent_chunks = chunks_qs.filter(created_at__date__gte=window_start)
@@ -668,24 +754,28 @@ def get_kpi_trends(user):
     }
 
 
-def get_recent_documents_table(user, limit=6):
+def get_recent_documents_table(user, organization=None, limit=6, scope_to_own=False):
     """
     Recent documents with per-row status/size/owner, for the Dashboard's
     Recent Documents table. Status mirrors the same chunk_count-vs-
     embedded-count calculation documents_view uses on the Documents
     page, so the two pages never disagree about a document's state.
+
+    Scoped to the active workspace (see _workspace_scope()). Inside an
+    Organization Workspace the table spans every member's uploads, not
+    just the viewing user's own - unless `scope_to_own` narrows it to
+    just `user`'s own rows, for a plain Member's Overview - so "Owner"
+    is read per-row from `doc.user` instead of assumed to always be the
+    viewer (the single-tenant-per-user assumption this function used to
+    document and rely on before organizations existed).
     """
 
     documents = (
-        Document.objects.filter(user=user)
+        _workspace_scope(Document, user, organization, scope_to_own)
+        .select_related("user")
         .annotate(embedded_chunks=Count("chunks__vector"))
         .order_by("-uploaded_at")[:limit]
     )
-
-    # Single-tenant per user: every document on this page belongs to
-    # the requesting user, so "Owner" is always them. There is no
-    # multi-user workspace/admin view backing a cross-user table.
-    owner_name = user.get_full_name() or user.username
 
     rows = []
 
@@ -701,7 +791,7 @@ def get_recent_documents_table(user, limit=6):
         rows.append({
             "id": doc.id,
             "title": doc.title,
-            "owner": owner_name,
+            "owner": doc.user.get_full_name() or doc.user.username,
             "file_type": (doc.file_type or "—").upper(),
             "chunk_count": doc.chunk_count,
             "size": format_bytes(doc.file_size),
@@ -711,3 +801,88 @@ def get_recent_documents_table(user, limit=6):
         })
 
     return rows
+
+
+# ============================================================
+# Platform-admin / advanced company dashboards
+# ============================================================
+
+def get_system_wide_stats():
+    """
+    Whole-platform totals and 7-day growth trends - deliberately NOT
+    scoped via _workspace_scope()/organization like every other
+    aggregate above: this backs the platform Admin's system-wide
+    overview, which by definition spans every organization and every
+    Personal Workspace at once. Growth trend mirrors get_kpi_trends()'s
+    "new rows in the last 7 days vs. the 7 days before that" window and
+    reuses the same _period_change() helper.
+    """
+
+    today = timezone.localdate()
+    window_start = today - timedelta(days=6)
+    prior_start = window_start - timedelta(days=7)
+    prior_end = window_start - timedelta(days=1)
+
+    def _trend(model, date_field, total_filter=None):
+        qs = model.objects.all() if total_filter is None else model.objects.filter(total_filter)
+        current = qs.filter(**{f"{date_field}__date__gte": window_start}).count()
+        previous = qs.filter(**{f"{date_field}__date__range": (prior_start, prior_end)}).count()
+        change_pct, direction = _period_change(current, previous)
+        return {"total": qs.count(), "change_pct": change_pct, "direction": direction}
+
+    return {
+        "organizations": _trend(Organization, "created_at"),
+        "users": _trend(User, "date_joined", Q(is_active=True)),
+        "documents": _trend(Document, "uploaded_at"),
+        "queries": _trend(QueryLog, "created_at"),
+        "ai_task_runs": _trend(AITaskRun, "created_at"),
+    }
+
+
+def get_member_activity_breakdown(organization):
+    """
+    Per active-membership usage snapshot for the Company Owner
+    dashboard - documents uploaded, queries asked, and AI Task runs
+    started BY THIS MEMBER WITHIN THIS ORGANIZATION (not their
+    Personal Workspace or any other company), plus their last-active
+    timestamp. Batched via annotate()/Count() rather than one query per
+    member. Metadata only - no question/answer text, matching the same
+    convention organization_stats_view's recent_queries already follows.
+    """
+
+    memberships = (
+        OrganizationMembership.objects.filter(
+            organization=organization, status=OrganizationMembership.Status.ACTIVE,
+        )
+        .select_related("user")
+        .annotate(
+            documents_count=Count(
+                "user__documents", filter=Q(user__documents__organization=organization), distinct=True,
+            ),
+            queries_count=Count(
+                "user__query_logs", filter=Q(user__query_logs__organization=organization), distinct=True,
+            ),
+            ai_task_runs_count=Count(
+                "user__ai_task_runs", filter=Q(user__ai_task_runs__organization=organization), distinct=True,
+            ),
+            last_query_at=Max(
+                "user__query_logs__created_at", filter=Q(user__query_logs__organization=organization),
+            ),
+        )
+        .order_by("-joined_at")
+    )
+
+    return [
+        {
+            "user_id": m.user_id,
+            "username": m.user.username,
+            "full_name": m.user.get_full_name() or m.user.username,
+            "role": m.role,
+            "documents_count": m.documents_count,
+            "queries_count": m.queries_count,
+            "ai_task_runs_count": m.ai_task_runs_count,
+            "last_active": m.last_query_at,
+            "joined_at": m.joined_at,
+        }
+        for m in memberships
+    ]

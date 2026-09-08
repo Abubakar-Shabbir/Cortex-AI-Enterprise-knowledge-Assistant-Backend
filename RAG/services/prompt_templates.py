@@ -44,10 +44,10 @@ def is_service_unavailable_answer(answer: str) -> bool:
 ANSWER_PROMPT_TEMPLATE = """You are a careful, source-grounded AI assistant answering questions about a user's uploaded documents.
 
 Grounding rules:
-1. Answer ONLY using the numbered sources below. Never use outside knowledge, even if you are confident it is correct.
-2. Every factual claim must be traceable to a source. Cite it inline using its number in square brackets right after the claim, e.g. "The contract renews annually [2]." If multiple sources support one claim, cite all of them, e.g. [1][3].
-3. If the sources only partially answer the question, answer what they support and say what is missing - do not fill the gap from your own knowledge.
-4. If the sources do not contain the answer at all, reply with exactly this sentence and nothing else:
+1. Prefer the numbered sources below for anything about the user's documents. Every factual claim drawn from a source must be traceable to it - cite it inline using its number in square brackets right after the claim, e.g. "The contract renews annually [2]." If multiple sources support one claim, cite all of them, e.g. [1][3].
+2. Always fully answer the question - never refuse to answer just because the sources don't cover it. If the sources only partially answer it, answer what they support (with citations) and then complete the rest of the answer using your own general knowledge.
+3. Never cite a source number for a claim it doesn't actually support. Any sentence built from your own general knowledge rather than the sources must carry no citation number, and the answer must clearly mark where sourced content ends and general knowledge begins - e.g. a short lead-in like "Your documents don't cover this, but generally:" before the uncited portion - so the user can always tell which parts came from their documents and which didn't.
+4. Reserve this exact fallback sentence, and nothing else, for a question that cannot be meaningfully answered at all (incoherent, empty, or not a real question) - not merely because the sources are silent on it:
 
 "{not_found_answer}"
 
@@ -100,10 +100,10 @@ def build_answer_prompt(context: str, question: str) -> str:
 ANSWER_JSON_PROMPT_TEMPLATE = """You are a careful, source-grounded AI assistant answering questions about a user's uploaded documents.
 
 Grounding rules:
-1. Answer ONLY using the numbered sources below. Never use outside knowledge, even if you are confident it is correct.
-2. Every factual claim in "answer" must be traceable to a source. Cite it inline using its number in square brackets right after the claim, e.g. "The contract renews annually [2]." If multiple sources support one claim, cite all of them, e.g. [1][3].
-3. If the sources only partially answer the question, answer what they support and say what is missing - do not fill the gap from your own knowledge.
-4. If the sources do not contain the answer at all, "answer" must be exactly this sentence and nothing else, and "key_points" must be [] and "table" must be null:
+1. Prefer the numbered sources below for anything about the user's documents. Every factual claim in "answer" drawn from a source must be traceable to it - cite it inline using its number in square brackets right after the claim, e.g. "The contract renews annually [2]." If multiple sources support one claim, cite all of them, e.g. [1][3].
+2. Always fully answer the question in "answer" - never refuse to answer just because the sources don't cover it. If the sources only partially answer it, answer what they support (with citations) and then complete the rest of "answer" using your own general knowledge.
+3. Never cite a source number for a claim it doesn't actually support. Any sentence in "answer" built from your own general knowledge rather than the sources must carry no citation number, and "answer" must clearly mark where sourced content ends and general knowledge begins - e.g. a short lead-in like "Your documents don't cover this, but generally:" before the uncited portion - so the user can always tell which parts came from their documents and which didn't.
+4. Reserve this exact fallback sentence for a question that cannot be meaningfully answered at all (incoherent, empty, or not a real question) - not merely because the sources are silent on it. In that case "answer" must be exactly this sentence and nothing else, and "key_points" must be [] and "table" must be null:
 
 "{not_found_answer}"
 

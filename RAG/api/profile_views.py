@@ -168,6 +168,17 @@ def profile_password_view(request):
     user = form.save()
     update_session_auth_hash(request, user)
 
+    # Also doubles as the forced first-login password change for a
+    # company-registered member (org_member_registration_service.
+    # register_company_member() sets this flag; the SPA blocks every
+    # other route until it's cleared) - same form, same endpoint, no
+    # separate "set your first password" flow to keep in sync with
+    # this one.
+    profile = user.profile
+    if profile.must_change_password:
+        profile.must_change_password = False
+        profile.save(update_fields=["must_change_password"])
+
     log_activity(actor=user, action="user.password_changed", description=f"{user.username} changed their password", request=request)
 
     notification_service.create_notification(

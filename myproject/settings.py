@@ -240,6 +240,12 @@ CORS_ALLOW_HEADERS = list({
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    # Multi-tenancy workspace header (org_permission_service.
+    # ORGANIZATION_HEADER) - api/client.js attaches this to every
+    # request once an organization workspace is active, so it must be
+    # preflight-allowed or the browser blocks the request entirely
+    # before it ever reaches Django.
+    "x-organization-slug",
 })
 CORS_EXPOSE_HEADERS = ["content-type"]
 # Prefight cache; safe for local + prod SPA origins above.
@@ -758,6 +764,14 @@ LLM_MAX_RETRIES = env.int("LLM_MAX_RETRIES", default=1)
 
 SITE_URL = env("SITE_URL", default="")
 SITE_NAME = env("SITE_NAME", default="Cortex")
+
+# Where the React SPA itself is reachable - a DIFFERENT origin from
+# SITE_URL (Django) in dev, since the SPA runs on Vite's own :5173
+# rather than being served by Django at all (see Templates & frontend
+# in Backend/CLAUDE.md). Email links that point into SPA-only routes
+# (password reset, org invitation accept, ...) must be built against
+# this, not SITE_URL - see RAG/tasks.py's _frontend_url().
+FRONTEND_URL = env("FRONTEND_URL", default="http://localhost:5173")
 
 # Email (auth/notification system) - no email infrastructure existed
 # in this project before. Backend choice is driven by whether real SMTP

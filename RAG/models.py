@@ -62,7 +62,27 @@ class Document(models.Model):
         default=False,
         db_index=True,
         help_text="Admin-managed Organization Library membership - visible/retrievable "
-                   "to every user, not just the owner. See document_access_service.",
+                   "to every user, not just the owner. See document_access_service. Not "
+                   "related to the `organization` field below despite the name overlap - "
+                   "this predates multi-tenancy and means 'shared workspace-wide', while "
+                   "`organization` means 'belongs to this one tenant'. Kept as-is rather "
+                   "than renamed for now; see the Organization model's docstring.",
+    )
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="documents",
+        db_index=True,
+        help_text="NULL means this document lives in its owner's Personal Workspace - "
+                   "today's exact pre-multi-tenancy behavior, unchanged. Set only when "
+                   "created while an organization workspace was active; every org-scoped "
+                   "query filters by this field, never by `user` alone, for a document "
+                   "that has it set. CASCADE: deleting an organization deletes its "
+                   "documents, matching how deleting a Document's owning User already "
+                   "cascades to it - a tenant's data doesn't outlive the tenant.",
     )
 
     is_archived = models.BooleanField(default=False, db_index=True)
@@ -342,6 +362,18 @@ class QueryLog(models.Model):
         related_name="query_logs"
     )
 
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="query_logs",
+        db_index=True,
+        help_text="NULL means this question was asked in the user's Personal Workspace - "
+                   "see Document.organization's help_text for the shared convention every "
+                   "organization-aware model in this file follows.",
+    )
+
     question = models.TextField()
 
     answer = models.TextField()
@@ -387,6 +419,7 @@ class QueryLog(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [models.Index(fields=["organization", "created_at"])]
 
     def __str__(self):
         return f"{self.user.username}: {self.question[:50]}"
@@ -404,6 +437,16 @@ class Entity(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="entities"
+    )
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="entities",
+        db_index=True,
+        help_text="NULL means this entity was extracted from a Personal Workspace document - see Document.organization's help_text for the shared convention.",
     )
 
     name = models.CharField(
@@ -431,7 +474,7 @@ class Entity(models.Model):
 
     class Meta:
         ordering = ["name"]
-        unique_together = ("user", "name", "entity_type")
+        unique_together = ("user", "organization", "name", "entity_type")
 
     def __str__(self):
         return f"{self.display_name} ({self.entity_type})"
@@ -478,6 +521,16 @@ class Relationship(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="relationships"
+    )
+
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="relationships",
+        db_index=True,
+        help_text="NULL means this relationship was extracted from a Personal Workspace document - see Document.organization's help_text for the shared convention.",
     )
 
     source = models.ForeignKey(
@@ -534,14 +587,21 @@ class Relationship(models.Model):
 # RAG/management/commands/seed_rbac.py; no other code should branch on
 # them going forward.
 #
-# There is no "Super Admin" tier - Admin is the sole built-in top-tier
-# role and always has full access (see Role.has_permission below).
-# Every other role (including the built-in "user") is fully dynamic:
-# created, edited, and deleted through Admin > Roles
+# Admin is the sole role with a hardcoded bypass (Role.has_permission
+# below) - it always has full access regardless of its M2M permission
+# rows. "Super Admin" (below) is NOT a second bypass tier - it's an
+# ordinary dynamic role like "user", seeded (RAG/management/commands/
+# seed_rbac.py) with every permission except the ones in
+# permission_service.SENSITIVE_PERMISSIONS (raw query content, precise
+# IP/geolocation), so its access is entirely visible/auditable via its
+# own M2M row set rather than a hidden bypass. Every role other than
+# Admin - "user", "super_admin", and any future custom role - is fully
+# dynamic: created, edited, and deleted through Admin > Roles
 # (RAG.views.admin_roles_view), with permissions assigned per role,
 # not hardcoded per feature.
 
 ADMIN_ROLE_SLUG = "admin"
+SUPER_ADMIN_ROLE_SLUG = "super_admin"
 USER_ROLE_SLUG = "user"
 
 
@@ -858,6 +918,16 @@ class AITaskRun(models.Model):
         User, on_delete=models.CASCADE, related_name="ai_task_runs"
     )
 
+    organization = models.ForeignKey(
+        "Organization",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="ai_task_runs",
+        db_index=True,
+        help_text="NULL means this run was started in the user's Personal Workspace - see Document.organization's help_text for the shared convention.",
+    )
+
     task_type = models.CharField(max_length=20, choices=TaskType.choices)
 
     status = models.CharField(
@@ -895,6 +965,7 @@ class AITaskRun(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [models.Index(fields=["organization", "created_at"])]
 
     def __str__(self):
         return f"{self.get_task_type_display()} ({self.id}) - {self.user.username}"
@@ -1041,6 +1112,14 @@ class AIRequestTrace(models.Model):
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name="ai_request_traces"
     )
 
+    organization = models.ForeignKey(
+        "Organization", on_delete=models.SET_NULL, null=True, blank=True, related_name="ai_request_traces",
+        help_text="Denormalized from query_log.organization / ai_task_run.organization at write "
+                   "time (observability_service.save_trace()) for cheap per-company/system-wide "
+                   "AI usage aggregation - NULL means Personal Workspace, same convention as "
+                   "Document.organization.",
+    )
+
     query_log = models.OneToOneField(
         QueryLog, on_delete=models.SET_NULL, null=True, blank=True, related_name="trace"
     )
@@ -1111,6 +1190,7 @@ class AIRequestTrace(models.Model):
         indexes = [
             models.Index(fields=["source", "status"]),
             models.Index(fields=["created_at"]),
+            models.Index(fields=["organization", "created_at"]),
         ]
 
     def __str__(self):
@@ -1322,6 +1402,46 @@ class UserProfile(models.Model):
                    "only new signups actually go through OTP.",
     )
 
+    class AccountType(models.TextChoices):
+        PERSONAL = "personal", "Personal"
+        COMPANY = "company", "Company"
+
+    account_type = models.CharField(
+        max_length=10,
+        choices=AccountType.choices,
+        default=AccountType.PERSONAL,
+        help_text="Decided once, during signup (or by accepting an "
+                   "organization invitation), never by a workspace "
+                   "switcher - see auth_views.signup()/org_invitation_service"
+                   ".accept_invitation(). A PERSONAL account never holds an "
+                   "OrganizationMembership; a COMPANY account's requests are "
+                   "always scoped to one of its organizations, never to "
+                   "Personal Workspace - org_permission_service."
+                   "resolve_request_organization() enforces both directions "
+                   "server-side, so this field (not any frontend state) is "
+                   "the actual source of truth an authorization decision "
+                   "reads from.",
+    )
+
+    ai_credits_balance = models.PositiveIntegerField(
+        null=True, blank=True, default=None,
+        help_text="Personal-Workspace mirror of Organization.ai_credits_balance - a completely "
+                   "separate credit pool, never shared with any Company workspace this same "
+                   "user might also belong to. NULL = never topped up / no Personal Plan "
+                   "assigned yet (unlimited, same 'absence means unlimited' convention).",
+    )
+
+    must_change_password = models.BooleanField(
+        default=False,
+        help_text="Set when org_member_registration_service.register_company_member() "
+                   "creates or reactivates a company-registered member's account with a "
+                   "system-generated password (see that module for the full flow) - "
+                   "never set for a self-service Personal/Company signup, which chooses "
+                   "its own password up front. RAG.api.auth_views.login_view() reports "
+                   "this in the session payload; the SPA blocks every route except the "
+                   "forced password-change page until it's cleared.",
+    )
+
     def __str__(self):
         return f"{self.user.username}'s profile"
 
@@ -1455,3 +1575,597 @@ class NotificationPreference(models.Model):
 
     def __str__(self):
         return f"Notification preferences for {self.user.username}"
+
+
+# ============================================================
+# Organizations / Multi-Tenancy
+# ============================================================
+#
+# A deliberately separate system from the platform RBAC above (Role/
+# Permission/UserRole), not a generalization of it - a platform Admin
+# and an organization's Owner/Admin are different concepts that happen
+# to look structurally similar. See RAG/services/org_permission_service.py
+# for the read/authorization API (mirrors permission_service.py's
+# shape) and that module's docstring for the full rationale.
+#
+# Every existing user-owned resource (Document, QueryLog, Entity, ...)
+# stays exactly as it is today - this section adds the tenancy
+# primitives only. Retrofitting individual resources to become
+# organization-aware (an additive, nullable `organization` FK each) is
+# deliberately a separate, later change per resource, not part of this
+# migration - see the architecture note this was designed against.
+#
+# There is no separate "Super Admin" role for organization oversight:
+# the platform Admin role already has every permission by design
+# (Role.has_permission's bypass above), so platform-wide organization
+# management is expressed as new "organizations.*" permissions
+# (seed_rbac.py) that Admin's "__all__" grant already covers, rather
+# than inventing a second top-tier platform role alongside the one
+# that was deliberately removed (see seed_rbac.py's docstring on the
+# prior "super_admin" role).
+
+ORG_ROLE_OWNER = "org_owner"
+ORG_ROLE_MEMBER = "member"
+
+# Retired 2026-09-06: organization roles collapsed from four tiers
+# (Owner/Admin/Manager/Member) to two (Owner/Member) - product decision
+# that an organization's Owner holds full control (RBAC, settings,
+# billing, analytics, everything) and every other member gets none of
+# that surface at all, full stop. These two string values are kept
+# only so migration 00XX_collapse_org_roles_to_owner_member can
+# reference the values it's migrating away FROM; nothing else should
+# import or compare against them - OrganizationMembership.Role no
+# longer offers them as choices, so no new row can ever get one.
+_RETIRED_ORG_ROLE_ADMIN = "org_admin"
+_RETIRED_ORG_ROLE_MANAGER = "manager"
+
+
+class OrganizationType(models.Model):
+    """
+    An extensible organization category (Company, Startup, Enterprise,
+    University, ...) - a table, not a hardcoded choices list, so a new
+    type never needs a migration or code change. Seeded by the
+    seed_organization_types management command; Admins can add more via
+    Django Admin.
+    """
+
+    slug = models.SlugField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Organization(models.Model):
+    """
+    A tenant. Membership (who belongs, with what role) lives on
+    OrganizationMembership below, not here - deliberately no direct
+    `owner` FK, since "who owns this org" is always derivable as
+    `memberships.filter(role=ORG_ROLE_OWNER)` and a separate FK would
+    just be a second copy of that fact that could drift out of sync.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        SUSPENDED = "suspended", "Suspended"
+        PENDING_DELETION = "pending_deletion", "Pending Deletion"
+
+    name = models.CharField(max_length=150)
+
+    slug = models.SlugField(
+        max_length=160,
+        unique=True,
+        help_text="URL-safe public identifier (e.g. /app/org/<slug>/...) - never expose the numeric id in a user-facing URL.",
+    )
+
+    org_type = models.ForeignKey(
+        OrganizationType, on_delete=models.PROTECT, related_name="organizations"
+    )
+
+    description = models.TextField(blank=True, default="")
+    logo = models.ImageField(upload_to="organizations/logos/", blank=True, null=True)
+    website = models.URLField(blank=True, default="")
+    industry = models.CharField(max_length=100, blank=True, default="")
+    contact_email = models.EmailField(blank=True, default="")
+    contact_phone = models.CharField(max_length=30, blank=True, default="")
+
+    class Size(models.TextChoices):
+        SIZE_1_10 = "1-10", "1-10 employees"
+        SIZE_11_50 = "11-50", "11-50 employees"
+        SIZE_51_200 = "51-200", "51-200 employees"
+        SIZE_201_500 = "201-500", "201-500 employees"
+        SIZE_500_PLUS = "500+", "500+ employees"
+
+    size = models.CharField(
+        max_length=10, choices=Size.choices, blank=True, default="",
+        help_text="Self-reported company size band, collected during company signup - purely informational, no behavior branches on it.",
+    )
+
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.ACTIVE, db_index=True
+    )
+
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="organizations_created"
+    )
+
+    ai_credits_balance = models.PositiveIntegerField(
+        null=True, blank=True, default=None,
+        help_text="A spendable AI usage balance, independent of (and in addition to) the Plan's "
+                   "monthly max_queries_per_month/max_ai_task_runs_per_month caps - see "
+                   "billing_service.check_ai_credits()/deduct_ai_credits(). NULL (every "
+                   "organization's default, until an Owner ever tops up) means unlimited, the same "
+                   "'absence means today's behavior, nothing breaks until someone opts in' "
+                   "convention Subscription's own absence already means for the Plan-based caps - a "
+                   "brand-new organization must never be silently blocked from AI features it never "
+                   "asked to meter. Only an Owner can add credits (billing_service.add_ai_credits()), "
+                   "which is the one place this ever becomes a real (non-NULL) number; every "
+                   "addition/deduction from that point on is recorded in AICreditTransaction below, "
+                   "never inferred from this running total alone.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    members = models.ManyToManyField(
+        User,
+        through="OrganizationMembership",
+        through_fields=("organization", "user"),
+        related_name="organizations",
+    )
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class OrganizationMembership(models.Model):
+    """
+    The User <-> Organization association, carrying that user's role
+    and status WITHIN this one organization - a user can hold different
+    roles in different organizations, and this table (not a field on
+    User) is what makes that possible. `role` is a fixed two-tier
+    CharField rather than a dynamic Role FK (unlike platform RBAC):
+    Owner holds full control of the organization (RBAC, settings,
+    billing, members, complete analytics - everything), and Member
+    gets none of that surface at all - no Admin/Manager middle tier
+    (collapsed away 2026-09-06; see org_permission_service.py's module
+    docstring for the migration path to per-org custom roles if a
+    middle tier is ever needed again). See
+    org_permission_service.ORG_ROLE_PERMISSIONS for what each tier
+    actually grants.
+    """
+
+    class Role(models.TextChoices):
+        OWNER = ORG_ROLE_OWNER, "Owner"
+        MEMBER = ORG_ROLE_MEMBER, "Member"
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        SUSPENDED = "suspended", "Suspended"
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="memberships"
+    )
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="organization_memberships"
+    )
+
+    role = models.CharField(max_length=20, choices=Role.choices, default=Role.MEMBER)
+
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.ACTIVE, db_index=True
+    )
+
+    invited_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    disabled_features = models.JSONField(
+        default=list, blank=True,
+        help_text="Feature codes (RAG.models.FEATURE_CODES) this specific member is blocked "
+                   "from, even though the organization's Plan includes them - Owner-only, set "
+                   "via org_member_feature_service.set_member_disabled_features(). Empty = no "
+                   "member-specific restriction, the same absence-means-allowed convention "
+                   "Plan.included_features and Subscription's own absence both use. Never "
+                   "applies to an Owner (see set_member_disabled_features()'s guard).",
+    )
+
+    class Meta:
+        unique_together = ("organization", "user")
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["organization", "role"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user} @ {self.organization} ({self.role})"
+
+
+class OrganizationInvitation(models.Model):
+    """
+    A pending invitation for someone (who may not have an account yet)
+    to join an organization at a specific role. Mirrors DocumentShare's
+    "invited_email is the pending state" pattern: this row exists
+    independently of whether `email` has a matching User yet -
+    org_invitation_service.accept_invitation() is the only place a
+    PENDING row ever changes status, and it requires the accepting
+    User's own email to match `email` exactly (see that function's
+    docstring), so a token can never be redeemed into an account it
+    wasn't actually issued to.
+
+    `token` is the single-use credential - opaque
+    (secrets.token_urlsafe, never the row's own id/pk) and only ever
+    meaningful while status == PENDING; accept/revoke both flip status
+    away from PENDING as their very first write, so a token cannot be
+    replayed after either.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ACCEPTED = "accepted", "Accepted"
+        EXPIRED = "expired", "Expired"
+        REVOKED = "revoked", "Revoked"
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="invitations"
+    )
+
+    email = models.EmailField(db_index=True)
+
+    role = models.CharField(
+        max_length=20, choices=OrganizationMembership.Role.choices, default=OrganizationMembership.Role.MEMBER
+    )
+
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True
+    )
+
+    invited_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="organization_invitations_sent"
+    )
+
+    accepted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="organization_invitations_accepted"
+    )
+
+    expires_at = models.DateTimeField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["organization", "status"]),
+            models.Index(fields=["email", "status"]),
+        ]
+        constraints = [
+            # Only one PENDING invitation per (organization, email) at
+            # a time - same "scoped/partial uniqueness" technique
+            # DocumentShare.Meta uses for its own pending-invite case,
+            # for the same reason: a plain unique_together would also
+            # collide every ACCEPTED/EXPIRED/REVOKED historical row for
+            # that same address, which is exactly the history a re-
+            # invite after expiry needs to be able to create fresh.
+            models.UniqueConstraint(
+                fields=["organization", "email"],
+                condition=models.Q(status="pending"),
+                name="orginvitation_unique_pending_per_org_email",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.email} -> {self.organization} ({self.role}, {self.status})"
+
+
+class OrganizationAuditLog(models.Model):
+    """
+    Organization-scoped audit trail - deliberately a SEPARATE table
+    from the platform-wide ActivityLog above, not that model with an
+    optional `organization` FK bolted on. An org Owner/Admin must see
+    only their own organization's events; a separate table makes "an
+    org-scoped query cannot return another org's rows" a schema-level
+    fact enforced by the FK itself, not something every call site has
+    to remember to filter for. Written by
+    RAG.services.org_audit_log_service.log_org_activity() - membership
+    changes, role changes, invitations, and (once retrofitted)
+    organization-owned resource events.
+    """
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="audit_logs"
+    )
+
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="org_audit_logs"
+    )
+
+    action = models.CharField(
+        max_length=50, db_index=True,
+        help_text='Namespaced event, e.g. "member.invited", "member.role_changed" - same convention as ActivityLog.action.',
+    )
+
+    description = models.CharField(max_length=255)
+
+    metadata = models.JSONField(default=dict, blank=True)
+
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["organization", "-created_at"])]
+
+    def __str__(self):
+        return f"[{self.organization}] {self.action}: {self.description}"
+
+
+# ============================================================
+# Billing / Plans / Usage Limits
+# ============================================================
+#
+# Internal bookkeeping only - no real payment processor, no card
+# charging. A Super Admin manually assigns a Plan to an Organization;
+# billing_service.py enforces the assigned Plan's limits with a hard
+# block (402) once exceeded. No Subscription row for an organization
+# means unlimited - the same "absence means today's behavior" rollout
+# convention the Departments models above use.
+
+# Feature-page codes gated by Plan.included_features / OrganizationMembership
+# .disabled_features (org_member_feature_service.py). Deliberately a separate
+# list from the platform pages.* Permission codenames (seed_rbac.py) even
+# though the names line up 1:1 - this gates a structurally different
+# (Plan/member) system, not platform RBAC, and the two must not be conflated.
+FEATURE_CODES = ["documents", "knowledge_base", "ask_ai", "ai_tasks", "analytics", "reports"]
+
+FEATURE_LABELS = {
+    "documents": "Documents",
+    "knowledge_base": "Knowledge Base",
+    "ask_ai": "Ask AI",
+    "ai_tasks": "AI Tasks",
+    "analytics": "Analytics",
+    "reports": "Reports",
+}
+
+
+class Plan(models.Model):
+    """
+    Super-Admin-managed only - nothing in the Owner-facing (or Personal-
+    Workspace-facing) API can create/edit a Plan or exceed what one
+    grants (see billing_views.py: every Plan-writing endpoint is gated
+    on the platform "billing.manage_plans" permission, never anything
+    org-scoped). NULL on any max_* field means "unlimited" for that
+    dimension. `plan_type` is the one field that separates the Company
+    and Personal Workspace plan catalogs - both live in this same table
+    (identical shape: price/credits/features/limits) rather than two
+    parallel models, since a Super Admin manages both through one CRUD
+    surface (AdminBillingPlans.jsx's tabs just filter on this field).
+    """
+
+    class PlanType(models.TextChoices):
+        COMPANY = "company", "Company"
+        PERSONAL = "personal", "Personal"
+
+    class BillingInterval(models.TextChoices):
+        MONTHLY = "monthly", "Monthly"
+        YEARLY = "yearly", "Yearly"
+
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=110, unique=True)
+    description = models.CharField(max_length=255, blank=True, default="")
+
+    plan_type = models.CharField(max_length=10, choices=PlanType.choices, default=PlanType.COMPANY)
+
+    price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text="NULL or 0 = free plan. Internal bookkeeping only - no real payment "
+                   "processor charges this (see billing_service.py's module docstring).",
+    )
+    currency = models.CharField(max_length=3, default="USD")
+    billing_interval = models.CharField(max_length=10, choices=BillingInterval.choices, default=BillingInterval.MONTHLY)
+
+    max_queries_per_month = models.PositiveIntegerField(null=True, blank=True)
+    max_ai_task_runs_per_month = models.PositiveIntegerField(null=True, blank=True)
+    max_storage_bytes = models.BigIntegerField(null=True, blank=True)
+    max_seats = models.PositiveIntegerField(null=True, blank=True)
+
+    included_credits = models.PositiveIntegerField(
+        default=0,
+        help_text="AI credits this Plan grants each billing period - refilled to this exact "
+                   "amount on every period rollover (see billing_service._advance_period()), "
+                   "not accumulated. 0 = this Plan includes no credits.",
+    )
+    allow_credit_purchase = models.BooleanField(
+        default=True,
+        help_text="Whether an Owner/Personal user on this Plan may buy extra credits as an "
+                   "add-on (billing_service.add_ai_credits()/add_personal_ai_credits()) on top "
+                   "of included_credits.",
+    )
+
+    included_features = models.JSONField(
+        default=list, blank=True,
+        help_text="Feature codes (FEATURE_CODES) this Plan grants. Empty list = every feature "
+                   "included (unrestricted) - same 'absence means unlimited' convention as "
+                   "max_queries_per_month=None, so every Plan created before this field existed "
+                   "keeps granting full access with zero admin action required.",
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Deactivating hides a Plan from future assignment without deleting it - "
+                   "existing Subscriptions referencing it (PROTECT below) keep working.",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["plan_type", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Subscription(models.Model):
+    """
+    One active Plan assignment per Organization OR per personal-
+    Workspace User - exactly one of `organization`/`user` is set,
+    enforced by the CheckConstraint below (the same "organization=None
+    means Personal Workspace" convention this codebase uses everywhere
+    else, just made explicit at the DB level here since this one model
+    now has to represent both scopes). No history of past plans kept
+    here (OrganizationAuditLog's "billing.plan_assigned" entries are
+    the history); deleting this row (not a status flag) is how a Super
+    Admin reverts an organization/user to unlimited - see
+    billing_service.get_active_subscription()'s "no row = unlimited"
+    contract. A *request* for a new Plan that hasn't been approved yet
+    is a separate PlanChangeRequest row, never a Subscription - this
+    row only ever represents an already-active grant.
+    """
+
+    # Both nullable OneToOneFields (not plain ForeignKeys): at most one
+    # Subscription per organization and at most one per user, AND the
+    # singular `organization.subscription`/`user.personal_subscription`
+    # reverse accessor (used by select_related("subscription__plan") in
+    # billing_views.py/admin_system_overview_views.py) both depend on
+    # this being a real OneToOneField, not just a uniqueness constraint
+    # on a ForeignKey - Django's select_related() can only traverse the
+    # reverse side of a genuine O2O, never a reverse FK. Postgres allows
+    # multiple NULLs in a unique index, so nullable O2O naturally
+    # supports "many rows with organization=NULL" (one per distinct
+    # user) while still enforcing "at most one row per non-null org".
+    organization = models.OneToOneField(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name="subscription")
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True, related_name="personal_subscription")
+    plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name="subscriptions")
+
+    current_period_start = models.DateTimeField()
+    current_period_end = models.DateTimeField()
+
+    assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    assigned_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["organization", "current_period_end"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(organization__isnull=False, user__isnull=True)
+                    | models.Q(organization__isnull=True, user__isnull=False)
+                ),
+                name="subscription_exactly_one_of_organization_or_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.organization or self.user} -> {self.plan}"
+
+
+class PlanChangeRequest(models.Model):
+    """
+    An Owner (or Personal Workspace user) asking to switch to a
+    different Plan - stays Pending until a Platform Admin approves or
+    rejects it (billing_service.approve_plan_request()/
+    reject_plan_request()). Approval is what actually creates/updates
+    the real Subscription row (via the existing assign_plan()/
+    assign_personal_plan()) - this model never grants anything on its
+    own, it's purely the request/audit trail in front of that. A
+    Platform Admin's existing DIRECT assignment path (billing_views.
+    assign_plan_view) is unaffected by this model at all - that's a
+    separate, admin-initiated instant path that skips the request
+    queue entirely, same as before this model existed.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name="plan_requests")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name="personal_plan_requests")
+    requested_plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name="+")
+
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    admin_note = models.CharField(max_length=255, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(organization__isnull=False, user__isnull=True)
+                    | models.Q(organization__isnull=True, user__isnull=False)
+                ),
+                name="plan_request_exactly_one_of_organization_or_user",
+            ),
+        ]
+        indexes = [models.Index(fields=["status", "created_at"])]
+
+    def __str__(self):
+        return f"{self.organization or self.user} -> {self.requested_plan} ({self.status})"
+
+
+class AICreditTransaction(models.Model):
+    """
+    One line of an organization's OR a personal-Workspace user's AI
+    credit ledger - every top-up (positive `amount`, either an Owner/
+    Personal-user self-serve purchase via billing_service.
+    add_ai_credits()/add_personal_ai_credits(), or an automatic Plan-
+    period refill) and every spend (negative `amount`, deducted
+    automatically per question asked / AI Task run via
+    billing_service.deduct_ai_credits()/deduct_personal_ai_credits() -
+    see that module for the cost schedule). `balance_after` is a
+    denormalized snapshot of the balance at the moment this row was
+    written - kept so the ledger reads back as a real running-balance
+    history without recomputing a sum over every prior row, the same
+    "correct once, cheap to read forever" trade-off QueryLog/AITaskRun
+    already make for their own tables. Organization.ai_credits_balance/
+    UserProfile.ai_credits_balance themselves remain the single source
+    of truth for "how many credits right now" - this table is the
+    audit trail behind that number, not a second place it's computed
+    from. Exactly one of `organization`/`user` is set, same convention
+    as Subscription above - Company and Personal credit pools are
+    completely separate ledgers, never mixed or transferable.
+    """
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name="ai_credit_transactions")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name="personal_ai_credit_transactions")
+    amount = models.IntegerField(help_text="Positive for a top-up, negative for a spend.")
+    balance_after = models.PositiveIntegerField()
+    reason = models.CharField(max_length=100, help_text='e.g. "Question asked", "AI Task run", "Credits added by Owner", "Plan period refill".')
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(organization__isnull=False, user__isnull=True)
+                    | models.Q(organization__isnull=True, user__isnull=False)
+                ),
+                name="ai_credit_transaction_exactly_one_of_organization_or_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.organization or self.user} {self.amount:+d} ({self.reason})"

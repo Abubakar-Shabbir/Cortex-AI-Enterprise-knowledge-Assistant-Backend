@@ -18,10 +18,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from ..models import AIRequestTrace, Entity, QueryLog
+from ..services import billing_service
 from ..services.citation_service import render_answer_html
 from ..services.categories_service import list_categories
 from ..services.collections_service import list_collections
 from ..services.document_access_service import get_accessible_documents
+from ..services.org_permission_service import resolve_request_organization
 from ..services.prompt_templates import is_not_found_answer, is_service_unavailable_answer
 from ..services.query_service import answer_question, answer_question_stream
 from ..services.knowledge_service import get_related_topics_for_citations
@@ -69,13 +71,14 @@ def ask_context_view(request):
     """Filter options + suggested/recent questions - everything ask_ai.html needs before the first question is asked."""
 
     user = request.user
-    documents = get_accessible_documents(user).order_by("title")
+    organization, _ = resolve_request_organization(request)
+    documents = get_accessible_documents(user, organization=organization).order_by("title")
 
-    recent_questions = QueryLog.objects.filter(user=user).order_by("-created_at")[:6]
+    recent_questions = QueryLog.objects.filter(user=user, organization=organization).order_by("-created_at")[:6]
 
     suggested_questions = [
         f"What can you tell me about {entity.display_name}?"
-        for entity in Entity.objects.filter(user=user).order_by("-mention_count")[:4]
+        for entity in Entity.objects.filter(user=user, organization=organization).order_by("-mention_count")[:4]
     ]
 
     return Response({
@@ -102,7 +105,8 @@ def ask_context_view(request):
 def ask_log_detail_view(request, log_id):
     """Replays an already-answered question from its QueryLog row - no retrieval, no LLM call, matches ask_ai()'s ?log_id= GET branch."""
 
-    log = QueryLog.objects.filter(id=log_id, user=request.user).first()
+    organization, _ = resolve_request_organization(request)
+    log = QueryLog.objects.filter(id=log_id, user=request.user, organization=organization).first()
     if not log:
         return Response({"error": "Not found."}, status=404)
 
@@ -126,7 +130,7 @@ def ask_log_detail_view(request, log_id):
         "from_history": True,
         "key_points": structured.get("key_points", []),
         "table": structured.get("table"),
-        "related_topics": get_related_topics_for_citations(request.user, citations),
+        "related_topics": get_related_topics_for_citations(request.user, citations, organization=log.organization),
     }
 
     return Response(_decorate_result(result))
@@ -139,10 +143,20 @@ def ask_view(request):
     if not question:
         return Response({"error": "A question is required."}, status=400)
 
+    organization, _ = resolve_request_organization(request)
+
+    try:
+        billing_service.check_query_limit_for(organization, request.user)
+        billing_service.check_ai_credits_for(organization, request.user, billing_service.AI_CREDIT_COST_PER_QUERY)
+    except billing_service.UsageLimitExceeded as e:
+        return Response({"error": str(e), "code": "usage_limit_exceeded", "limit_type": e.limit_type}, status=402)
+
     filters = _filters_from_payload(request.data)
 
     with bind_trace_id():
-        result = answer_question(question, user=request.user, filters=filters)
+        result = answer_question(question, user=request.user, filters=filters, organization=organization)
+
+    billing_service.deduct_ai_credits_for(organization, request.user, billing_service.AI_CREDIT_COST_PER_QUERY, "Question asked", actor=request.user)
 
     return Response(_decorate_result(result))
 
@@ -154,16 +168,25 @@ def ask_stream_view(request):
     if not question:
         return Response({"error": "A question is required."}, status=400)
 
-    filters = _filters_from_payload(request.data)
     user = request.user
+    organization, _ = resolve_request_organization(request)
+
+    try:
+        billing_service.check_query_limit_for(organization, user)
+        billing_service.check_ai_credits_for(organization, user, billing_service.AI_CREDIT_COST_PER_QUERY)
+    except billing_service.UsageLimitExceeded as e:
+        return Response({"error": str(e), "code": "usage_limit_exceeded", "limit_type": e.limit_type}, status=402)
+
+    filters = _filters_from_payload(request.data)
 
     def event_stream():
         with bind_trace_id() as trace_id:
             try:
-                for event in answer_question_stream(question, user=user, filters=filters):
+                for event in answer_question_stream(question, user=user, filters=filters, organization=organization):
                     if event["type"] == "token":
                         yield f"data: {json.dumps({'type': 'token', 'text': event['text']})}\n\n"
                     elif event["type"] == "done":
+                        billing_service.deduct_ai_credits_for(organization, user, billing_service.AI_CREDIT_COST_PER_QUERY, "Question asked", actor=user)
                         result = _decorate_result(event["result"])
                         yield f"data: {json.dumps({'type': 'done', 'result': result})}\n\n"
             except Exception:

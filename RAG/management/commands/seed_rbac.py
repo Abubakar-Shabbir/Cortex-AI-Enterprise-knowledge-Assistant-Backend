@@ -19,12 +19,15 @@ everyone else -> User). Every check after this point reads
 Role/Permission via RAG.services.permission_service, never
 is_staff/is_superuser directly.
 
-There is no "Super Admin" role - Admin is the sole built-in top-tier
-role and always has every permission (Role.has_permission's bypass in
-RAG/models.py), which this command's own DEFAULT_ROLES entry mirrors
-for the Role Management UI. A database that still has a "super_admin"
-role from before it was removed is migrated by
-RAG/migrations/0016_remove_super_admin_role.py, not by this command.
+Admin is the sole built-in role with a hardcoded permission bypass
+(Role.has_permission's bypass in RAG/models.py). "Super Admin" (seeded
+below) is a *different* thing from the "super_admin" role
+RAG/migrations/0016_remove_super_admin_role.py once removed - that was
+a second hardcoded bypass tier; this is an ordinary dynamic role
+(no bypass) holding every permission except
+permission_service.SENSITIVE_PERMISSIONS, seeded here the same way any
+other role is. See RAG/management/commands/seed_super_admin.py for
+seeding the one built-in account that holds it.
 """
 
 from django.contrib.auth.models import User
@@ -32,7 +35,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from RAG.models import Permission, Role, UserRole
-from RAG.services.permission_service import ADMIN, USER
+from RAG.services.permission_service import ADMIN, SENSITIVE_PERMISSIONS, SUPER_ADMIN, USER
 
 # (codename, name, description) - namespaced "<area>.<action>" so new
 # areas can be added without colliding with existing codenames.
@@ -43,6 +46,21 @@ DEFAULT_PERMISSIONS = [
     ("users.assign_role", "Assign roles", "Change a user's assigned role."),
 
     ("roles.manage", "Manage roles", "Create, edit, and delete custom roles, and assign their permissions."),
+
+    # Platform-wide oversight of every organization/tenant - this is
+    # the "Super Admin" capability the multi-tenancy spec asks for,
+    # expressed as ordinary permissions on the existing Admin role
+    # rather than a second top-tier role. See
+    # RAG/services/org_permission_service.py's module docstring for
+    # the full rationale. Org-scoped equivalents (a member managing
+    # their OWN organization) go through org_permission_service
+    # instead - these codenames only ever gate the platform-wide,
+    # cross-organization view.
+    ("organizations.view_all", "View all organizations", "See every organization on the platform, regardless of membership."),
+    ("organizations.manage", "Manage organizations", "Create, suspend, and delete any organization, and view its full detail/statistics."),
+
+    ("billing.manage_plans", "Manage billing plans", "Create/edit/deactivate Plans and assign a Plan to any organization."),
+    ("billing.view_all", "View all organization billing", "View usage and plan assignment across every organization, for support/oversight."),
 
     ("documents.view_all", "View all documents", "See document metadata (title/owner/size/status) across every user."),
     ("documents.delete_any", "Delete any document", "Delete a document owned by any user, not just your own."),
@@ -104,11 +122,27 @@ USER_DEFAULT_PERMISSIONS = [
     "pages.ai_tasks",
 ]
 
+# Every permission except the ones flagged SENSITIVE_PERMISSIONS (raw
+# query content, precise IP/geolocation) - full platform-wide control
+# (every organization, every user, every system/settings surface) with
+# no path to actual private content. Unlike Admin, this role has no
+# Role.has_permission() bypass, so this list IS its access - and,
+# unlike Admin's "__all__", it's fixed at the moment this role is first
+# created (see the `if created:` guard below): a permission added to
+# DEFAULT_PERMISSIONS later won't automatically reach an
+# already-created Super Admin role, same one-time-attach behavior any
+# other non-Admin role already has.
+SUPER_ADMIN_PERMISSIONS = [c for c, _, _ in DEFAULT_PERMISSIONS if c not in SENSITIVE_PERMISSIONS]
+
 # role slug -> (display name, permission codenames or "__all__")
 DEFAULT_ROLES = {
     ADMIN: {
         "name": "Admin",
         "permissions": "__all__",
+    },
+    SUPER_ADMIN: {
+        "name": "Super Admin",
+        "permissions": SUPER_ADMIN_PERMISSIONS,
     },
     USER: {
         "name": "User",

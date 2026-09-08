@@ -18,9 +18,12 @@ from .services.permission_service import (
     has_admin_area_access,
     has_any_settings_permission,
     has_any_system_logs_permission,
+    is_admin,
     user_has_permission,
     user_has_role,
 )
+from .services.org_member_feature_service import has_feature_access
+from .services.org_permission_service import resolve_organization_context, resolve_request_organization, user_has_org_permission
 
 
 def role_required(*role_slugs):
@@ -61,6 +64,52 @@ def permission_required(*codenames):
     return decorator
 
 
+def org_feature_required(feature_code):
+    """
+    Plain-Django (non-DRF) counterpart to
+    RAG.api.permissions.HasOrgFeatureAccess, for the handful of CSV
+    export views that use @permission_required instead of DRF
+    permission_classes (RAG/api/reports_views.py's export_*_view
+    functions). Resolves the organization via
+    resolve_request_organization(request) (the X-Organization-Slug
+    header), same as HasOrgFeatureAccess - Personal Workspace always
+    passes.
+    """
+
+    def decorator(view_func):
+        @wraps(view_func)
+        @login_required
+        def wrapped_view(request, *args, **kwargs):
+            organization, _ = resolve_request_organization(request)
+            if not has_feature_access(request.user, organization, feature_code):
+                raise PermissionDenied(
+                    "This feature isn't included in your organization's plan, or has been restricted for your account."
+                )
+            return view_func(request, *args, **kwargs)
+        return wrapped_view
+    return decorator
+
+
+def org_analytics_admin_required(view_func):
+    """
+    Plain-Django counterpart to RAG.api.permissions.RestrictsOrgAnalyticsToAdmin,
+    for reports_views.py's export_*_view functions (CSV exports use
+    @permission_required instead of DRF permission_classes). Inside an
+    Organization, only a platform Admin may proceed - not even that
+    organization's Owner; Personal Workspace (organization is None)
+    always passes.
+    """
+
+    @wraps(view_func)
+    @login_required
+    def wrapped_view(request, *args, **kwargs):
+        organization, _ = resolve_request_organization(request)
+        if organization is not None and not is_admin(request.user):
+            raise PermissionDenied("Only a platform Admin can view Analytics/Reports for an organization.")
+        return view_func(request, *args, **kwargs)
+    return wrapped_view
+
+
 def admin_required(view_func):
     """Shortcut for role_required(ADMIN) - the sole built-in top-tier role now that Super Admin has been removed."""
     return role_required(ADMIN)(view_func)
@@ -87,6 +136,49 @@ def admin_area_required(view_func):
             raise PermissionDenied("You don't have access to this page.")
         return view_func(request, *args, **kwargs)
     return wrapped_view
+
+
+def org_permission_required(*codenames):
+    """
+    Restrict an organization-scoped view (one taking `org_slug` as a
+    URL kwarg) to users who are an ACTIVE member of that organization
+    and whose role grants every codename in `codenames` -
+    RAG.services.org_permission_service's counterpart to
+    permission_required() above, tenant-scoped instead of
+    platform-scoped.
+
+    Never trusts org_slug beyond "which organization is being asked
+    about": resolve_organization_context() re-derives membership from
+    OrganizationMembership on every request. A 404 (org_slug doesn't
+    resolve to an active organization) and a 403 (resolves, but this
+    user isn't an active member, or is a member without the required
+    permission) are kept distinct so a request never learns whether an
+    organization it can't access even exists versus genuinely doesn't.
+
+    On success, attaches `request.organization` and
+    `request.org_membership` so the view body never has to re-resolve
+    either - and, critically, so the view's own queryset filtering has
+    a trusted `request.organization` to scope by instead of re-reading
+    org_slug itself.
+    """
+
+    def decorator(view_func):
+        @wraps(view_func)
+        @login_required
+        def wrapped_view(request, org_slug, *args, **kwargs):
+            organization, membership = resolve_organization_context(request.user, org_slug)
+
+            if not membership:
+                raise PermissionDenied("You don't have access to this organization.")
+
+            if not all(user_has_org_permission(request.user, organization, code) for code in codenames):
+                raise PermissionDenied("You don't have access to this resource.")
+
+            request.organization = organization
+            request.org_membership = membership
+            return view_func(request, org_slug, *args, **kwargs)
+        return wrapped_view
+    return decorator
 
 
 def settings_access_required(view_func):

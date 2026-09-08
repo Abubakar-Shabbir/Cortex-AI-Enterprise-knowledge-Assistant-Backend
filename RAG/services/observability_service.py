@@ -106,6 +106,7 @@ def save_trace(
     source: str,
     user=None,
     *,
+    organization=None,
     query_log=None,
     ai_task_run=None,
     status: str,
@@ -158,6 +159,7 @@ def save_trace(
             trace_id=trace_id,
             source=source,
             user=user,
+            organization=organization,
             query_log=query_log,
             ai_task_run=ai_task_run,
             status=status,
@@ -242,6 +244,10 @@ def _apply_common_filters(qs, filters: dict):
         qs = qs.filter(source=filters["source"])
     if filters.get("user_id"):
         qs = qs.filter(user_id=filters["user_id"])
+    if "organization" in filters:
+        # Membership test, not truthiness - {"organization": None} must scope to
+        # Personal-Workspace-only traces, not be mistaken for "no filter at all".
+        qs = qs.filter(organization=filters["organization"])
     if filters.get("date_from"):
         qs = qs.filter(created_at__date__gte=filters["date_from"])
     if filters.get("date_to"):
