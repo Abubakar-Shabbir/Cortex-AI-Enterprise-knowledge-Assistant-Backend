@@ -20,13 +20,10 @@ class FeatureAccessError(Exception):
 
 def has_feature_access(user, organization, feature_code):
     """
-    organization=None (Personal Workspace) now goes through that
-    user's own Personal Plan ceiling (billing_service.
-    personal_has_plan_feature()) instead of always True - Personal
-    Workspaces have real Plans now too. There's no per-member floor to
-    apply here (a Personal Workspace has no "members" to restrict below
-    the Plan, just the one user), so the Plan ceiling is the whole
-    check for this branch.
+    organization=None means no organization - unreachable in practice
+    since Personal Workspace was removed as an account type (every
+    account now belongs to a Company), kept as a defensive True
+    (unrestricted) rather than a crash if ever hit.
 
     Fail-closed exception (Company branch only): a user with no active
     membership in this organization (and no platform bypass) always
@@ -39,7 +36,7 @@ def has_feature_access(user, organization, feature_code):
         return True
 
     if organization is None:
-        return billing_service.personal_has_plan_feature(user, feature_code)
+        return True
 
     if not billing_service.org_has_plan_feature(organization, feature_code):
         return False

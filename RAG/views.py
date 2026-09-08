@@ -1026,17 +1026,32 @@ def shared_with_me_view(request):
 @permission_required("pages.documents")
 def org_library_view(request):
     """
-    Admin-managed Organization Library. Manage controls (toggle a
-    document in/out) are gated behind "documents.manage_org_library"
-    both in the template and, as the real enforcement, in
-    org_library_toggle below - this view itself is readable by anyone
-    with "pages.documents" since Organization Library membership is
-    what makes a document universally visible in the first place.
+    Admin-managed Organization Library - this classic Django-template
+    view predates Multi-Tenancy & Organizations (see
+    Backend/CLAUDE.md) and has no mechanism (no X-Organization-Slug
+    header, no session-stored active org) to know which company's
+    workspace a request belongs to, unlike its React/API counterpart
+    (RAG.api.documents_views.org_library_view, which resolves and
+    filters by the verified active organization via
+    resolve_request_organization()). Explicitly scoped to Personal
+    Workspace (`organization__isnull=True`) rather than left unscoped,
+    the same "no organization param = Personal Workspace only"
+    convention every other get_accessible_document_ids(request.user)
+    call in this file already follows - an earlier, unscoped version
+    of this view leaked every organization's Organization Library
+    metadata (title/owner/type/size) to any authenticated user
+    platform-wide, since "workspace-wide"/"universally visible" here
+    used to mean the whole (single-tenant) deployment, before
+    Organizations turned "workspace" into "one company among many."
+    Manage controls (toggle a document in/out) are gated behind
+    "documents.manage_org_library" both in the template and, as the
+    real enforcement, in org_library_toggle below - this view itself
+    is readable by anyone with "pages.documents".
     """
 
     can_manage = user_has_permission(request.user, "documents.manage_org_library")
 
-    org_documents = Document.objects.filter(is_org_library=True)
+    org_documents = Document.objects.filter(is_org_library=True, organization__isnull=True)
     total_org_documents = org_documents.count()
     total_org_storage = format_bytes(org_documents.aggregate(total=Sum("file_size"))["total"] or 0)
 
@@ -1052,13 +1067,16 @@ def org_library_view(request):
     add_candidates = []
 
     if can_manage and add_query:
-        # Workspace-wide, metadata-only search (title/owner/type) so an
-        # Admin can find and publish a document they don't personally
-        # own or otherwise have access to yet - same "explicitly
-        # authorized" cross-tenant read admin_query_detail_view uses,
-        # never document content.
+        # Personal-Workspace-only, metadata-only search (title/owner/
+        # type) so an Admin can find and publish a document they don't
+        # personally own or otherwise have access to yet - same
+        # "explicitly authorized" cross-tenant-within-Personal-
+        # Workspace read admin_query_detail_view uses, never document
+        # content. organization__isnull=True for the same reason as
+        # org_documents above - never search across a company's
+        # documents from this unscoped legacy view.
         add_candidates = list(
-            Document.objects.filter(is_org_library=False, title__icontains=add_query)
+            Document.objects.filter(is_org_library=False, organization__isnull=True, title__icontains=add_query)
             .select_related("user")
             .order_by("title")[:20]
         )
@@ -1082,23 +1100,28 @@ def org_library_view(request):
 @permission_required("documents.manage_org_library")
 def org_library_toggle(request, doc_id):
     """
-    Add/remove ANY document (not just one the actor can already see)
-    from the Organization Library - the whole point is for an Admin to
-    publish someone else's document workspace-wide, e.g. Policies/
-    SOPs/Manuals/Templates uploaded by various users, so this
-    deliberately does NOT further restrict by
+    Add/remove ANY Personal-Workspace document (not just one the actor
+    can already see) from the (Personal-Workspace-only, see
+    org_library_view's docstring above) Organization Library - the
+    whole point is for an Admin to publish someone else's document
+    workspace-wide, e.g. Policies/SOPs/Manuals/Templates uploaded by
+    various users, so this deliberately does NOT further restrict by
     get_accessible_document_ids - the "documents.manage_org_library"
     permission the decorator above already requires (Admin-only by
     default) is the entire access boundary here, mirroring
     admin_query_detail_view's "explicitly authorized auditing" -
     title/owner/type only ever cross a permission boundary this way,
-    never document content.
+    never document content. organization__isnull=True keeps this
+    legacy, un-org-aware view from ever toggling a document that
+    belongs to some company's Organization Library it has no way to
+    verify the actor even belongs to - the same cross-tenant write an
+    earlier, unscoped version of this lookup allowed.
     """
 
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
 
-    document = get_object_or_404(Document, id=doc_id)
+    document = get_object_or_404(Document, id=doc_id, organization__isnull=True)
 
     document.is_org_library = not document.is_org_library
     document.save(update_fields=["is_org_library"])

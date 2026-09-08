@@ -11,7 +11,7 @@ from . import (
     admin_queries_views, admin_roles_views, admin_settings_views, admin_system_logs_views, admin_system_overview_views,
     admin_users_views, ai_tasks_views, analytics_views, ask_views, auth_views, billing_views, collections_views,
     dashboard_views, documents_views, knowledge_views, monitoring_views, notification_views,
-    organizations_views, personal_billing_views, profile_views, reports_views, search_history_views,
+    organizations_views, profile_views, reports_views, search_history_views,
 )
 
 urlpatterns = [
@@ -140,10 +140,6 @@ urlpatterns = [
 
     path("organizations/<slug:org_slug>/billing/", billing_views.organization_billing_view, name="api_organization_billing"),
     path("organizations/<slug:org_slug>/billing/request-plan/", billing_views.organization_plan_request_view, name="api_organization_plan_request"),
-
-    path("personal/billing/", personal_billing_views.personal_billing_view, name="api_personal_billing"),
-    path("personal/billing/request-plan/", personal_billing_views.personal_plan_request_view, name="api_personal_plan_request"),
-    path("personal/billing/ai-credits/", personal_billing_views.personal_ai_credits_view, name="api_personal_ai_credits"),
 
     path("admin/organizations/", organizations_views.platform_organizations_view, name="api_platform_organizations"),
     path("admin/organizations/<slug:org_slug>/action/", organizations_views.platform_organization_action_view, name="api_platform_organization_action"),

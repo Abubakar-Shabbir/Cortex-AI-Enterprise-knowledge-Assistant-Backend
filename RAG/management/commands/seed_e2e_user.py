@@ -1,20 +1,18 @@
 """
-Seed (or reset) the disposable accounts Playwright end-to-end tests
-log in as - idempotent, safe to re-run any time, same get_or_create
-shape as seed_rbac.py/seed_organization_types.py.
+Seed (or reset) the disposable account Playwright end-to-end tests log
+in as - idempotent, safe to re-run any time, same get_or_create shape
+as seed_rbac.py/seed_organization_types.py.
 
-Personal vs Company is a one-time signup decision (see UserProfile.
-account_type's help_text) - one seeded account can never legitimately
-cover both, so this seeds TWO:
-
-- e2e_personal_user: account_type=PERSONAL, zero organizations, ever.
 - e2e_company_user: account_type=COMPANY, Owner of exactly one
   organization ("E2E Test Company") to start from - the Playwright
   suite's own organizations.spec.js exercises registering a SECOND
   company from there (self-service creation is still available to an
   existing Company account - see organizations_views.organizations_view).
 
-Deliberately dedicated, obviously-named accounts rather than reusing
+(A second, Personal-Workspace fixture account used to be seeded here
+too - removed along with the Personal Workspace account type.)
+
+Deliberately a dedicated, obviously-named account rather than reusing
 any real user already in this dev database - E2E tests create/mutate
 real rows (documents, organizations, memberships) against whichever
 database `manage.py runserver` is pointed at, and must never risk
@@ -39,9 +37,6 @@ from RAG.models import USER_ROLE_SLUG, Organization, OrganizationMembership, Org
 
 E2E_PASSWORD = "E2ePlaywright!2026"
 
-E2E_PERSONAL_USERNAME = "e2e_personal_user"
-E2E_PERSONAL_EMAIL = "e2e_personal_user@example.invalid"
-
 E2E_COMPANY_USERNAME = "e2e_company_user"
 E2E_COMPANY_EMAIL = "e2e_company_user@example.invalid"
 E2E_COMPANY_NAME = "E2E Test Company"
@@ -49,7 +44,7 @@ E2E_COMPANY_SLUG = "e2e-test-company"
 
 
 class Command(BaseCommand):
-    help = "Seed the disposable e2e_personal_user/e2e_company_user accounts Playwright logs in as."
+    help = "Seed the disposable e2e_company_user account Playwright logs in as."
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -84,15 +79,6 @@ class Command(BaseCommand):
 
             return user, created
 
-        personal_user, personal_created = _seed_base_user(
-            E2E_PERSONAL_USERNAME, E2E_PERSONAL_EMAIL, UserProfile.AccountType.PERSONAL,
-        )
-        # A PERSONAL account must never hold organization membership -
-        # if a previous run (before this account_type split existed)
-        # left any behind, drop them so this account stays a clean
-        # Personal-only fixture.
-        OrganizationMembership.objects.filter(user=personal_user).delete()
-
         company_user, company_created = _seed_base_user(
             E2E_COMPANY_USERNAME, E2E_COMPANY_EMAIL, UserProfile.AccountType.COMPANY,
         )
@@ -107,6 +93,5 @@ class Command(BaseCommand):
         )
 
         self.stdout.write(self.style.SUCCESS(
-            f"{'Created' if personal_created else 'Reset'} {E2E_PERSONAL_USERNAME} (personal, password: {E2E_PASSWORD})\n"
             f"{'Created' if company_created else 'Reset'} {E2E_COMPANY_USERNAME} (company, owner of '{E2E_COMPANY_NAME}', password: {E2E_PASSWORD})"
         ))

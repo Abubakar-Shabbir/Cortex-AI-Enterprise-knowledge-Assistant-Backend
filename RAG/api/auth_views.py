@@ -45,26 +45,26 @@ def _form_errors(form):
 
 def _resolve_portal(can_view_admin_area, account_type):
     """
-    The single backend-computed source of truth for which of the
-    three portals (Personal/Company/Platform Admin) the frontend
-    should render - never derived independently client-side from
-    `role`/`accountType`, so there's exactly one place "which portal"
-    is decided. Platform admin access always wins (an Admin/Super
-    Admin who also happens to own a company still lands in the
-    Platform portal by default - they can still reach their own
-    organization's pages directly, this only decides the default
-    shell/nav).
+    The single backend-computed source of truth for which of the two
+    portals (Company/Platform Admin) the frontend should render -
+    never derived independently client-side from `role`/`accountType`,
+    so there's exactly one place "which portal" is decided. Platform
+    admin access always wins (an Admin/Super Admin who also happens to
+    own a company still lands in the Platform portal by default - they
+    can still reach their own organization's pages directly, this only
+    decides the default shell/nav). `account_type` is always COMPANY
+    now (Personal Workspace was removed as an account type) - kept as
+    a parameter rather than dropped outright so this function's shape
+    doesn't need to change again if a third account type is ever added.
     """
     if can_view_admin_area:
         return "platform_admin"
-    if account_type == UserProfile.AccountType.COMPANY:
-        return "company"
-    return "personal"
+    return "company"
 
 
 def _session_payload(request):
     role, can_view_admin_area, user_permissions = get_user_access_snapshot(request.user)
-    account_type = getattr(getattr(request.user, "profile", None), "account_type", UserProfile.AccountType.PERSONAL)
+    account_type = getattr(getattr(request.user, "profile", None), "account_type", UserProfile.AccountType.COMPANY)
     return {
         "authenticated": True,
         "user": {
@@ -77,14 +77,11 @@ def _session_payload(request):
         "role": role.name if role else None,
         "can_view_admin_area": can_view_admin_area,
         "permissions": user_permissions,
-        # Decided once at signup (or by accepting an invitation) - the
-        # frontend reads this to decide whether to show the Company
-        # workspace switcher at all (never a Personal<->Company choice -
-        # see UserProfile.account_type's help_text), but it's read-only
-        # information from the frontend's point of view: every actual
-        # authorization decision is still made server-side from this
-        # same field plus real OrganizationMembership rows, regardless
-        # of what the frontend does with it.
+        # Always COMPANY now (Personal Workspace was removed as an
+        # account type) - it's read-only information from the
+        # frontend's point of view regardless: every actual
+        # authorization decision is still made server-side from real
+        # OrganizationMembership rows, not this field.
         "account_type": account_type,
         "portal": _resolve_portal(can_view_admin_area, account_type),
         # Set by org_member_registration_service.register_company_member()
@@ -92,7 +89,7 @@ def _session_payload(request):
         # blocks every route except the password-change page until the
         # user clears this (RAG.api.profile_views.profile_password_view
         # clears it as a side effect of a successful change). Always
-        # False for a self-service Personal/Company signup.
+        # False for a self-service Company signup.
         "must_change_password": getattr(getattr(request.user, "profile", None), "must_change_password", False),
         "csrf_token": get_token(request),
     }

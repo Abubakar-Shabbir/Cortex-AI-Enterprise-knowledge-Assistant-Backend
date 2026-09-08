@@ -2,28 +2,34 @@
 Billing / Plans / Usage Limits
 
 Internal bookkeeping only - no real payment processor, no card
-charging. A Super Admin manually assigns a Plan to an Organization or a
-Personal Workspace User (billing_views.py/personal_billing_views.py);
-this module enforces the assigned Plan's limits with a hard block once
-exceeded, and reports current usage. An Owner (or Personal user) can
-also REQUEST a plan change themselves (request_plan_change()), which
-stays Pending until a Platform Admin approves it (approve_plan_request())
-- direct assignment by a Platform Admin (assign_plan()) is a separate,
-instant, admin-initiated path that skips the request queue entirely.
+charging. A Super Admin manually assigns a Plan to an Organization
+(billing_views.py); this module enforces the assigned Plan's limits
+with a hard block once exceeded, and reports current usage. An Owner
+can also REQUEST a plan change themselves (request_plan_change()),
+which stays Pending until a Platform Admin approves it
+(approve_plan_request()) - direct assignment by a Platform Admin
+(assign_plan()) is a separate, instant, admin-initiated path that
+skips the request queue entirely.
 
-No Subscription row for an organization/user means unlimited - the
-caller (get_active_subscription/get_active_personal_subscription) never
-has to special-case "new organization" vs. "explicitly unlimited
-organization", and every check_*_limit below returns immediately (no
-query, no block) when that's the case. This is the same "absence means
-today's behavior, nothing breaks until someone opts in" rollout
-convention this codebase uses elsewhere for additive, nullable rollout
-fields. The instant ANY Plan is assigned, though, AI credits become a
-strictly metered resource governed by that Plan's `included_credits`
-(refilled every billing period - see _advance_period()) - credits are
-no longer an independent axis an Owner can leave untouched forever once
-a Plan is in play, unlike before this module supported Plan-integrated
-credits.
+No Subscription row for an organization means unlimited - the caller
+(get_active_subscription) never has to special-case "new organization"
+vs. "explicitly unlimited organization", and every check_*_limit below
+returns immediately (no query, no block) when that's the case. This is
+the same "absence means today's behavior, nothing breaks until someone
+opts in" rollout convention this codebase uses elsewhere for additive,
+nullable rollout fields. The instant ANY Plan is assigned, though, AI
+credits become a strictly metered resource governed by that Plan's
+`included_credits` (refilled every billing period - see
+_advance_period()) - credits are no longer an independent axis an
+Owner can leave untouched forever once a Plan is in play, unlike
+before this module supported Plan-integrated credits.
+
+(Personal Workspace billing - `user=`-keyed Subscriptions/credits -
+was removed along with the Personal Workspace account type; the
+`_for`-suffixed dispatchers below (check_query_limit_for, ...) are
+kept only so ask_views.py/ai_tasks_views.py/documents_views.py don't
+need to call check_query_limit() etc. directly - every workspace is an
+Organization now.)
 
 Usage is computed by aggregating QueryLog/AITaskRun/Document/
 OrganizationMembership directly - NOT a separately-maintained counter
@@ -43,17 +49,6 @@ slip through before a block takes effect. Accepted given these are not
 per-second-frequency actions (asking a question, starting an AI Task
 run, uploading a document, inviting a member).
 
-Company (`organization=`) and Personal (`user=`) are two entirely
-parallel, never-mixed systems throughout this module - a Company's
-credit pool/usage/Plan and a user's own Personal Workspace credit
-pool/usage/Plan share nothing, by design (requirement: "Personal
-Workspace credits and Company Workspace credits must remain completely
-separate"). Rather than risk changing the signature/behavior of the
-original, heavily-tested `organization=`-scoped functions, each has a
-`_personal`-suffixed sibling with identical logic keyed by `user`/
-`UserProfile.ai_credits_balance` instead of `organization`/
-`Organization.ai_credits_balance` - both delegate to the same private
-`_for()`-style core so the two families can't silently drift apart.
 """
 
 import calendar
@@ -104,31 +99,11 @@ def _advance_period_end(period_end, plan):
     return _add_one_month(period_end)
 
 
-# ============================================================
-# Subscription lookup - one private core, two public scopes
-# ============================================================
-
-def _active_subscription_for(organization=None, user=None):
-    qs = Subscription.objects.select_related("plan")
-    if organization is not None:
-        return qs.filter(organization=organization).first()
-    if user is not None:
-        return qs.filter(user=user).first()
-    return None
-
-
 def get_active_subscription(organization):
-    """None for Personal Workspace (organization=None) or an org with no Subscription row - both mean unlimited. Unchanged signature/behavior from before Personal Plans existed."""
+    """None for an org with no Subscription row (or no organization at all) - both mean unlimited."""
     if organization is None:
         return None
-    return _active_subscription_for(organization=organization)
-
-
-def get_active_personal_subscription(user):
-    """The Personal-Workspace counterpart to get_active_subscription() - None means unlimited, same contract."""
-    if user is None:
-        return None
-    return _active_subscription_for(user=user)
+    return Subscription.objects.select_related("plan").filter(organization=organization).first()
 
 
 def _credit_holder(subscription):
@@ -148,9 +123,9 @@ def _refill_credits_for_subscription(subscription, reason="Plan period refill"):
     delta was (positive if this raises the balance, negative if it
     lowers it - e.g. unused extra-purchased credits from the prior
     period being cleared). Called on genuine period rollover
-    (_advance_period) and on first-ever Plan assignment (assign_plan/
-    the personal equivalent) alike, so a brand new Subscription starts
-    funded immediately rather than waiting for the next boundary.
+    (_advance_period) and on first-ever Plan assignment (assign_plan)
+    alike, so a brand new Subscription starts funded immediately
+    rather than waiting for the next boundary.
     """
 
     from django.db import transaction
@@ -261,39 +236,6 @@ def get_organization_usage(organization):
     return usage
 
 
-def get_personal_usage(user):
-    """The Personal-Workspace counterpart to get_organization_usage() - same shape, minus seats_used (a Personal Workspace has no members)."""
-    subscription = get_active_personal_subscription(user)
-    profile = user.profile
-    if subscription is None or not subscription.plan.is_active:
-        return {"plan": None, "unlimited": True, "credits_balance": profile.ai_credits_balance}
-
-    period_start, period_end = _advance_period(subscription)
-    cache_key = f"personal_usage:{user.id}:{period_start.isoformat()}"
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    plan = subscription.plan
-    profile.refresh_from_db(fields=["ai_credits_balance"])
-    usage = {
-        "unlimited": False,
-        "plan": _serialize_plan_snapshot(plan),
-        "period_start": period_start,
-        "period_end": period_end,
-        "queries_used": QueryLog.objects.filter(
-            user=user, organization__isnull=True, created_at__gte=period_start, created_at__lt=period_end,
-        ).count(),
-        "ai_task_runs_used": AITaskRun.objects.filter(
-            user=user, organization__isnull=True, created_at__gte=period_start, created_at__lt=period_end,
-        ).count(),
-        "storage_used_bytes": Document.objects.filter(user=user, organization__isnull=True).aggregate(t=Sum("file_size"))["t"] or 0,
-        "credits_balance": profile.ai_credits_balance,
-    }
-    cache.set(cache_key, usage, USAGE_CACHE_SECONDS)
-    return usage
-
-
 def _check(organization, used_key, limit_key, limit_type, message_noun):
     if organization is None:
         return
@@ -342,45 +284,6 @@ def check_seat_limit(organization, additional_seats=1):
         raise UsageLimitExceeded(
             "seats",
             f"This organization has reached its seat limit ({limit}). Upgrade your plan to invite more members.",
-        )
-
-
-# ---- Personal-Workspace counterparts of the four checks above ----
-
-def _check_personal(user, used_key, limit_key, limit_type, message_noun):
-    if user is None:
-        return
-    usage = get_personal_usage(user)
-    if usage["unlimited"]:
-        return
-    limit = usage["plan"][limit_key]
-    if limit is not None and usage[used_key] >= limit:
-        raise UsageLimitExceeded(
-            limit_type,
-            f"You've reached your personal workspace's {message_noun} limit ({limit}). "
-            f"Upgrade your plan to continue.",
-        )
-
-
-def check_personal_query_limit(user):
-    _check_personal(user, "queries_used", "max_queries_per_month", "queries", "monthly AI query")
-
-
-def check_personal_ai_task_limit(user):
-    _check_personal(user, "ai_task_runs_used", "max_ai_task_runs_per_month", "ai_task_runs", "monthly AI Task run")
-
-
-def check_personal_storage_limit(user, additional_bytes):
-    if user is None:
-        return
-    usage = get_personal_usage(user)
-    if usage["unlimited"]:
-        return
-    limit = usage["plan"]["max_storage_bytes"]
-    if limit is not None and usage["storage_used_bytes"] + additional_bytes > limit:
-        raise UsageLimitExceeded(
-            "storage",
-            f"This upload would exceed your personal workspace's storage limit ({limit} bytes). Upgrade your plan to continue.",
         )
 
 
@@ -487,59 +390,6 @@ def add_ai_credits(organization, amount, actor, reason="Credits added by Owner")
     return locked.ai_credits_balance
 
 
-# ---- Personal-Workspace counterparts of the credit functions above ----
-
-def check_personal_ai_credits(user, cost):
-    if user is None:
-        return
-    profile = user.profile
-    if profile.ai_credits_balance is None:
-        return
-    if profile.ai_credits_balance < cost:
-        raise UsageLimitExceeded(
-            "ai_credits",
-            f"Your personal workspace doesn't have enough AI credits ({profile.ai_credits_balance} remaining, "
-            f"{cost} required). Add more credits to continue.",
-        )
-
-
-def deduct_personal_ai_credits(user, cost, reason, actor=None):
-    if user is None or cost <= 0:
-        return
-
-    from django.db import transaction
-
-    with transaction.atomic():
-        locked = UserProfile.objects.select_for_update().get(user_id=user.pk)
-        if locked.ai_credits_balance is None:
-            return
-        locked.ai_credits_balance = max(0, locked.ai_credits_balance - cost)
-        locked.save(update_fields=["ai_credits_balance"])
-        AICreditTransaction.objects.create(
-            user=user, amount=-cost, balance_after=locked.ai_credits_balance,
-            reason=reason, actor=actor,
-        )
-    user.profile.ai_credits_balance = locked.ai_credits_balance
-
-
-def add_personal_ai_credits(user, amount, actor, reason="Credits added"):
-    if amount <= 0:
-        raise BillingServiceError("The amount must be a positive number of credits.")
-
-    from django.db import transaction
-
-    with transaction.atomic():
-        locked = UserProfile.objects.select_for_update().get(user_id=user.pk)
-        locked.ai_credits_balance = (locked.ai_credits_balance or 0) + amount
-        locked.save(update_fields=["ai_credits_balance"])
-        AICreditTransaction.objects.create(
-            user=user, amount=amount, balance_after=locked.ai_credits_balance,
-            reason=reason, actor=actor,
-        )
-    user.profile.ai_credits_balance = locked.ai_credits_balance
-    return locked.ai_credits_balance
-
-
 def _validate_feature_codes(codes):
     """Normalizes to a sorted, de-duplicated list; raises on any code outside FEATURE_CODES
     so a typo in the admin UI can never silently create an unenforceable restriction."""
@@ -551,16 +401,12 @@ def _validate_feature_codes(codes):
 
 def org_plan_feature_codes(organization):
     """
-    None = unrestricted (every FEATURE_CODES entry included). Personal
-    Workspace (organization=None), no Subscription, an inactive Plan,
-    or a Plan whose included_features is still the [] default all mean
-    "no restriction" - the same "no row = unlimited" contract
+    None = unrestricted (every FEATURE_CODES entry included). No
+    organization, no Subscription, an inactive Plan, or a Plan whose
+    included_features is still the [] default all mean "no
+    restriction" - the same "no row = unlimited" contract
     get_organization_usage() already establishes for quantity limits,
-    now extended to feature access. Personal Workspace's own feature
-    ceiling is a separate function, personal_plan_feature_codes() -
-    org_plan_feature_codes(None) staying None (unrestricted) here is
-    deliberate backward-compatible behavior for any caller that still
-    only ever passes an organization.
+    now extended to feature access.
     """
     if organization is None:
         return None
@@ -572,21 +418,6 @@ def org_plan_feature_codes(organization):
 
 def org_has_plan_feature(organization, feature_code):
     codes = org_plan_feature_codes(organization)
-    return codes is None or feature_code in codes
-
-
-def personal_plan_feature_codes(user):
-    """The Personal-Workspace counterpart to org_plan_feature_codes() - None = unrestricted (no Personal Plan assigned, or an inactive one, or one with no feature restriction)."""
-    if user is None:
-        return None
-    subscription = get_active_personal_subscription(user)
-    if subscription is None or not subscription.plan.is_active:
-        return None
-    return subscription.plan.included_features or None
-
-
-def personal_has_plan_feature(user, feature_code):
-    codes = personal_plan_feature_codes(user)
     return codes is None or feature_code in codes
 
 
@@ -678,59 +509,26 @@ def unassign_plan(organization, actor, request=None):
         )
 
 
-def assign_personal_plan(user, plan, assigned_by, request=None):
-    """The Personal-Workspace counterpart to assign_plan() - same first-assignment credit refill, no OrganizationAuditLog (Personal Workspace has none); logged to the platform ActivityLog instead."""
-    now = timezone.now()
-    subscription, created = Subscription.objects.get_or_create(
-        user=user,
-        defaults={"plan": plan, "assigned_by": assigned_by, "current_period_start": now, "current_period_end": _advance_period_end(now, plan)},
-    )
-    if not created:
-        subscription.plan = plan
-        subscription.assigned_by = assigned_by
-        subscription.save(update_fields=["plan", "assigned_by", "updated_at"])
-    if created:
-        _refill_credits_for_subscription(subscription, reason="Plan assigned")
-
-    log_activity(assigned_by, "billing.personal_plan_assigned", f"{user.username}'s personal plan changed to {plan.name}", request=request)
-    return subscription
-
-
-def unassign_personal_plan(user, actor, request=None):
-    deleted, _ = Subscription.objects.filter(user=user).delete()
-    if deleted:
-        log_activity(actor, "billing.personal_plan_unassigned", f"{user.username}'s personal plan removed - reverted to unlimited.", request=request)
-
-
 # ============================================================
-# Plan change requests - the Owner/Personal-user self-service path in
-# front of assign_plan()/assign_personal_plan() above. See
-# PlanChangeRequest's model docstring for the full rationale.
+# Plan change requests - the Owner self-service path in front of
+# assign_plan() above. See PlanChangeRequest's model docstring for the
+# full rationale.
 # ============================================================
 
-def request_plan_change(plan, requested_by, organization=None, user=None, request=None):
-    if (organization is None) == (user is None):
-        raise BillingServiceError("Exactly one of organization or user is required.")
-    if plan.plan_type == Plan.PlanType.COMPANY and organization is None:
-        raise BillingServiceError("This plan is a Company plan and can't be requested for a Personal Workspace.")
-    if plan.plan_type == Plan.PlanType.PERSONAL and user is None:
-        raise BillingServiceError("This plan is a Personal plan and can't be requested for a Company organization.")
+def request_plan_change(plan, requested_by, organization, request=None):
     if not plan.is_active:
         raise BillingServiceError("This plan is no longer available.")
 
     existing_pending = PlanChangeRequest.objects.filter(
-        organization=organization, user=user, status=PlanChangeRequest.Status.PENDING,
+        organization=organization, status=PlanChangeRequest.Status.PENDING,
     ).exists()
     if existing_pending:
         raise BillingServiceError("There's already a pending plan request - wait for it to be reviewed before requesting another.")
 
     plan_request = PlanChangeRequest.objects.create(
-        organization=organization, user=user, requested_plan=plan, requested_by=requested_by,
+        organization=organization, requested_plan=plan, requested_by=requested_by,
     )
-    if organization is not None:
-        log_org_activity(organization, requested_by, "billing.plan_requested", f"Requested plan change to {plan.name}", metadata={"plan_id": plan.id}, request=request)
-    else:
-        log_activity(requested_by, "billing.personal_plan_requested", f"Requested personal plan change to {plan.name}", request=request)
+    log_org_activity(organization, requested_by, "billing.plan_requested", f"Requested plan change to {plan.name}", metadata={"plan_id": plan.id}, request=request)
     return plan_request
 
 
@@ -738,10 +536,7 @@ def approve_plan_request(plan_request, actor, request=None):
     if plan_request.status != PlanChangeRequest.Status.PENDING:
         raise BillingServiceError("This request has already been reviewed.")
 
-    if plan_request.organization_id:
-        assign_plan(plan_request.organization, plan_request.requested_plan, actor, request=request)
-    else:
-        assign_personal_plan(plan_request.user, plan_request.requested_plan, actor, request=request)
+    assign_plan(plan_request.organization, plan_request.requested_plan, actor, request=request)
 
     plan_request.status = PlanChangeRequest.Status.APPROVED
     plan_request.reviewed_by = actor
@@ -751,39 +546,24 @@ def approve_plan_request(plan_request, actor, request=None):
 
 
 def check_query_limit_for(organization, user):
-    """Dispatches to the Company or Personal check depending on which workspace `organization` names (None = Personal, scoped to `user`) - the one place enforcement call sites (ask_views.py, ...) branch, instead of repeating `if organization is not None: ... else: ...` at every site."""
-    if organization is not None:
-        check_query_limit(organization)
-    else:
-        check_personal_query_limit(user)
+    """Every workspace is now an Organization - kept as the one place enforcement call sites (ask_views.py, ...) go through, rather than calling check_query_limit() directly, so a future workspace type doesn't require touching every call site again. `user` is unused now but kept in the signature to avoid churning every caller."""
+    check_query_limit(organization)
 
 
 def check_ai_task_limit_for(organization, user):
-    if organization is not None:
-        check_ai_task_limit(organization)
-    else:
-        check_personal_ai_task_limit(user)
+    check_ai_task_limit(organization)
 
 
 def check_storage_limit_for(organization, user, additional_bytes):
-    if organization is not None:
-        check_storage_limit(organization, additional_bytes)
-    else:
-        check_personal_storage_limit(user, additional_bytes)
+    check_storage_limit(organization, additional_bytes)
 
 
 def check_ai_credits_for(organization, user, cost):
-    if organization is not None:
-        check_ai_credits(organization, cost)
-    else:
-        check_personal_ai_credits(user, cost)
+    check_ai_credits(organization, cost)
 
 
 def deduct_ai_credits_for(organization, user, cost, reason, actor=None):
-    if organization is not None:
-        deduct_ai_credits(organization, cost, reason, actor=actor)
-    else:
-        deduct_personal_ai_credits(user, cost, reason, actor=actor)
+    deduct_ai_credits(organization, cost, reason, actor=actor)
 
 
 def reject_plan_request(plan_request, actor, note="", request=None):

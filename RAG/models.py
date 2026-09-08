@@ -1991,8 +1991,8 @@ class Plan(models.Model):
     )
     allow_credit_purchase = models.BooleanField(
         default=True,
-        help_text="Whether an Owner/Personal user on this Plan may buy extra credits as an "
-                   "add-on (billing_service.add_ai_credits()/add_personal_ai_credits()) on top "
+        help_text="Whether an Owner on this Plan may buy extra credits as an "
+                   "add-on (billing_service.add_ai_credits()) on top "
                    "of included_credits.",
     )
 
@@ -2077,12 +2077,11 @@ class Subscription(models.Model):
 
 class PlanChangeRequest(models.Model):
     """
-    An Owner (or Personal Workspace user) asking to switch to a
-    different Plan - stays Pending until a Platform Admin approves or
-    rejects it (billing_service.approve_plan_request()/
-    reject_plan_request()). Approval is what actually creates/updates
-    the real Subscription row (via the existing assign_plan()/
-    assign_personal_plan()) - this model never grants anything on its
+    An Owner asking to switch to a different Plan - stays Pending
+    until a Platform Admin approves or rejects it (billing_service.
+    approve_plan_request()/reject_plan_request()). Approval is what
+    actually creates/updates the real Subscription row (via the
+    existing assign_plan()) - this model never grants anything on its
     own, it's purely the request/audit trail in front of that. A
     Platform Admin's existing DIRECT assignment path (billing_views.
     assign_plan_view) is unaffected by this model at all - that's a
@@ -2126,14 +2125,13 @@ class PlanChangeRequest(models.Model):
 
 class AICreditTransaction(models.Model):
     """
-    One line of an organization's OR a personal-Workspace user's AI
-    credit ledger - every top-up (positive `amount`, either an Owner/
-    Personal-user self-serve purchase via billing_service.
-    add_ai_credits()/add_personal_ai_credits(), or an automatic Plan-
-    period refill) and every spend (negative `amount`, deducted
-    automatically per question asked / AI Task run via
-    billing_service.deduct_ai_credits()/deduct_personal_ai_credits() -
-    see that module for the cost schedule). `balance_after` is a
+    One line of an organization's AI credit ledger - every top-up
+    (positive `amount`, either an Owner self-serve purchase via
+    billing_service.add_ai_credits(), or an automatic Plan-period
+    refill) and every spend (negative `amount`, deducted automatically
+    per question asked / AI Task run via billing_service.
+    deduct_ai_credits() - see that module for the cost schedule).
+    `balance_after` is a
     denormalized snapshot of the balance at the moment this row was
     written - kept so the ledger reads back as a real running-balance
     history without recomputing a sum over every prior row, the same

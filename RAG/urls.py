@@ -29,7 +29,13 @@ urlpatterns = [
     # "take me to my dashboard" entry point regardless of role. See
     # RAG.services.permission_service.get_dashboard_url_for_user.
     path("", views.home_redirect, name="home"),
-    path("signup/", auth_views.signup, name="signup"),
+    # Classic-template signup ("signup/") was removed along with the
+    # Personal Workspace account type it created by default - it had
+    # no company-creation path of its own (no company_name field on
+    # SignupForm), so leaving it routed would have silently created an
+    # orphaned, org-less account. The React SPA's /signup is the only
+    # real signup surface now (per Backend/CLAUDE.md, it already was
+    # the only UI for account-type/company signup).
     path("login/", auth_views.login_user, name="login"),
     path("logout/", auth_views.logout_user, name="logout"),
     path("verify-otp/", auth_views.verify_otp, name="verify_otp"),
