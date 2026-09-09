@@ -14,6 +14,7 @@ from django.db import IntegrityError
 from django.utils.text import slugify
 
 from ..models import Organization, OrganizationMembership, UserProfile
+from .billing_service import assign_plan, get_or_create_free_plan
 from .org_audit_log_service import log_org_activity
 
 
@@ -47,7 +48,13 @@ def create_organization(name, org_type, created_by, slug=None, **profile_fields)
     step - an organization with zero members would be an immediate
     lockout (nobody could ever manage it), so this function's contract
     is "always leaves exactly one Owner behind", not "create the org,
-    caller adds themselves separately".
+    caller adds themselves separately". Also immediately assigns the
+    built-in Free plan (billing_service.get_or_create_free_plan()) via
+    assign_plan() - a brand-new company starts on a real, working plan
+    with real limits rather than the old unmetered "no Subscription row
+    yet" default; changing to a different plan afterwards only ever
+    happens through the Owner-initiated request/approval queue
+    (PlanChangeRequest - see its model docstring).
 
     Also the ONE place (alongside org_invitation_service.
     accept_invitation()) that ensures `created_by` ends up
@@ -76,6 +83,8 @@ def create_organization(name, org_type, created_by, slug=None, **profile_fields)
     OrganizationMembership.objects.create(
         organization=organization, user=created_by, role=OrganizationMembership.Role.OWNER,
     )
+
+    assign_plan(organization, get_or_create_free_plan(), created_by)
 
     profile = created_by.profile
     if profile.account_type != UserProfile.AccountType.COMPANY:

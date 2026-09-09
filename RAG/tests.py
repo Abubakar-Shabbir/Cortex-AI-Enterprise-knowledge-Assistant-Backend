@@ -1883,6 +1883,17 @@ class OrganizationServiceTests(TestCase):
         self.assertEqual(membership.role, org_perm.OWNER)
         self.assertEqual(organization.slug, "acme-inc")
 
+    def test_create_organization_auto_assigns_free_plan(self):
+        from .models import Subscription
+        from .services import organization_service as org_svc
+        from .services.billing_service import FREE_PLAN_SLUG
+
+        organization = org_svc.create_organization(name="Free Plan Co", org_type=self.org_type, created_by=self.creator)
+
+        subscription = Subscription.objects.get(organization=organization)
+        self.assertEqual(subscription.plan.slug, FREE_PLAN_SLUG)
+        self.assertEqual(subscription.assigned_by, self.creator)
+
     def test_create_organization_generates_unique_slug_on_collision(self):
         from .services import organization_service as org_svc
 
@@ -2337,13 +2348,22 @@ class SuperAdminRoleTests(TestCase):
         self.assertEqual(response.json()["status"], "suspended")
 
     def test_super_admin_cannot_view_query_content(self):
+        """
+        Admin > Queries' content-detail endpoint (/api/admin/queries/
+        <id>/detail/) was removed outright - not merely permission-
+        gated - so this 404s for literally every user, Super Admin
+        included, rather than 403ing only for a content-less one. See
+        RAG.api.admin_queries_views' module docstring and
+        AdminQueriesListPrivacyTests below for the metadata-only design
+        this replaced it with.
+        """
         query_log = QueryLog.objects.create(
             user=self.other_owner, question="What is in this document?", answer="Some answer.",
         )
 
         self.client.login(username="super_admin_user", password="pw12345")
         response = self.client.get(f"/api/admin/queries/{query_log.id}/detail/")
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_super_admin_can_manage_another_users_ai_task_run(self):
         run = AITaskRun.objects.create(
@@ -2355,30 +2375,46 @@ class SuperAdminRoleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(AITaskRun.objects.filter(id=run.id).exists())
 
-    def test_super_admin_can_open_a_companys_own_pages_despite_having_no_real_membership(self):
+    def test_super_admin_can_open_a_companys_stats_but_not_its_management_surface(self):
         """
         Regression test: clicking into a company from Admin > Companies
         used to 403 - Super Admin (like Admin) has organizations.manage
         but was never an actual OrganizationMembership row in any
         company it didn't personally create, and HasOrgPermission hard-
-        required real membership. get_user_org_role() now treats an
+        required real membership. get_user_org_role() treats an
         organizations.manage holder as an OWNER of every organization
-        for exactly this reason (see its docstring).
+        for rank-comparison purposes, but (privacy fix) that no longer
+        flows into user_has_org_permission()/get_org_permission_codenames() -
+        those re-check real membership and, absent one, grant only
+        BYPASS_ONLY_CODENAMES (organization.view). So platform oversight
+        can still open a company's stats Overview, but members/billing/
+        settings/audit-logs - the company's own management surface -
+        now correctly 403 for a non-member, same as any other outsider.
         """
         self.client.login(username="super_admin_user", password="pw12345")
 
         response = self.client.get(f"/api/organizations/{self.organization.slug}/")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["my_role"], "org_owner")
+        self.assertEqual(response.json()["my_permissions"], ["organization.view"])
+
+        response = self.client.get(f"/api/organizations/{self.organization.slug}/stats/")
+        self.assertEqual(response.status_code, 200)
 
         response = self.client.get(f"/api/organizations/{self.organization.slug}/members/")
-        self.assertEqual(response.status_code, 200)
-
-        response = self.client.get(f"/api/organizations/{self.organization.slug}/departments/")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 403)
 
         response = self.client.get(f"/api/organizations/{self.organization.slug}/billing/")
+        self.assertEqual(response.status_code, 403)
+
+        response = self.client.get(f"/api/organizations/{self.organization.slug}/audit-logs/")
+        self.assertEqual(response.status_code, 403)
+
+        # The separate platform-level action (suspend/delete) is untouched
+        # by this restriction - it never goes through the org-scoped
+        # codename table at all.
+        response = self.client.post(f"/api/admin/organizations/{self.organization.slug}/action/", {"action": "suspend"})
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "suspended")
 
     def test_plain_member_still_cannot_open_a_company_they_do_not_belong_to(self):
         """The organizations.manage override must not leak to ordinary users - a non-privileged member of ONE company gets 403 on a DIFFERENT company they have no relationship to at all, exactly as before this fix."""
@@ -3197,9 +3233,12 @@ class BillingTests(TestCase):
     """
     Billing/Plans/Usage Limits - internal bookkeeping only, hard-block
     enforcement. Covers: no Subscription means unlimited (new-org
-    default), exceeding a limit blocks the next attempt, an Owner
-    cannot reach any Plan-writing endpoint, and period rollover resets
-    usage.
+    default), a Plan's own max_queries_per_month is informational only
+    (2026-09-08 redesign - AI credits are the sole org-wide
+    spend-metering currency, see billing_service.py's module
+    docstring) while an Owner-set per-member cap still hard-blocks that
+    one member, an Owner cannot reach any Plan-writing endpoint, and
+    period rollover resets usage.
     """
 
     def setUp(self):
@@ -3223,24 +3262,64 @@ class BillingTests(TestCase):
                 user=self.owner, organization=self.organization, question="q", answer="a",
                 search_method="Hybrid (Vector + BM25)", response_time_ms=1, confidence=50,
             )
-        billing_service.check_query_limit(self.organization)  # must not raise
+        billing_service.check_query_limit_for(self.organization, self.owner)  # must not raise
         usage = billing_service.get_organization_usage(self.organization)
         self.assertTrue(usage["unlimited"])
 
-    def test_exceeding_query_limit_raises_on_the_next_attempt(self):
+    def test_plan_query_count_is_informational_only_not_enforced(self):
+        """A Plan's own max_queries_per_month no longer raises on its own once exceeded - AI credits are the organization's sole spend-metering currency now (see billing_service.py's module docstring). The count is still reported by get_organization_usage(), just never a block by itself."""
         from .services import billing_service
 
         billing_service.assign_plan(self.organization, self.plan, self.owner)
 
-        for _ in range(2):  # max_queries_per_month=2
+        for _ in range(5):  # plan's max_queries_per_month=2, deliberately exceeded
             QueryLog.objects.create(
                 user=self.owner, organization=self.organization, question="q", answer="a",
                 search_method="Hybrid (Vector + BM25)", response_time_ms=1, confidence=50,
             )
 
+        billing_service.check_query_limit_for(self.organization, self.owner)  # must not raise - no member-specific cap set
+        usage = billing_service.get_organization_usage(self.organization)
+        self.assertEqual(usage["queries_used"], 5)
+
+    def test_member_query_limit_blocks_only_that_member(self):
+        """The Owner-set per-member sub-quota (OrganizationMembership.max_queries_per_month) remains a real, count-based hard block, independent of the org-wide credit balance and of the Plan's now-informational max_queries_per_month."""
+        from .services import billing_service
+        from .services.org_member_limits_service import set_member_usage_limits
+
+        member = User.objects.create_user(username="billing_member", password="pw12345")
+        member_membership = OrganizationMembership.objects.create(
+            organization=self.organization, user=member, role=self.org_perm.MEMBER,
+        )
+        owner_membership = OrganizationMembership.objects.get(organization=self.organization, user=self.owner)
+        set_member_usage_limits(self.organization, owner_membership, member_membership, 1, None)
+
+        QueryLog.objects.create(
+            user=member, organization=self.organization, question="q", answer="a",
+            search_method="Hybrid (Vector + BM25)", response_time_ms=1, confidence=50,
+        )
+
         with self.assertRaises(billing_service.UsageLimitExceeded) as ctx:
-            billing_service.check_query_limit(self.organization)
-        self.assertEqual(ctx.exception.limit_type, "queries")
+            billing_service.check_query_limit_for(self.organization, member)
+        self.assertEqual(ctx.exception.limit_type, "member_queries")
+
+        # The Owner, who has no member-specific cap, is unaffected.
+        billing_service.check_query_limit_for(self.organization, self.owner)
+
+    def test_member_limit_cannot_exceed_the_organizations_own_plan_limit(self):
+        from .services import billing_service
+        from .services.org_member_limits_service import MemberLimitError, set_member_usage_limits
+
+        billing_service.assign_plan(self.organization, self.plan, self.owner)  # plan's max_queries_per_month=2
+
+        member = User.objects.create_user(username="billing_member_2", password="pw12345")
+        member_membership = OrganizationMembership.objects.create(
+            organization=self.organization, user=member, role=self.org_perm.MEMBER,
+        )
+        owner_membership = OrganizationMembership.objects.get(organization=self.organization, user=self.owner)
+
+        with self.assertRaises(MemberLimitError):
+            set_member_usage_limits(self.organization, owner_membership, member_membership, 5, None)
 
     def test_seat_limit_blocks_new_invitation(self):
         from .services import billing_service
@@ -3816,9 +3895,11 @@ class ForcedPasswordChangeTests(TestCase):
 
 class AICreditsTests(TestCase):
     """
-    billing_service.py's AI credit ledger - a spendable balance
-    independent of (and enforced IN ADDITION TO) the Plan's monthly
-    query/AI-task caps. Only an Owner can top up; every question asked
+    billing_service.py's AI credit ledger - the organization's SOLE
+    spend-metering currency (2026-09-08 redesign; the Plan's own
+    max_queries_per_month/max_ai_task_runs_per_month are informational
+    display only now, see BillingTests above and billing_service.py's
+    module docstring). Only an Owner can top up; every question asked
     and every AI Task run spends credits automatically.
     """
 
@@ -4141,18 +4222,216 @@ class MemberFeatureAccessTests(TestCase):
         self.assertFalse(has_feature_access(self.member_a, self.organization, "reports"))
         self.assertTrue(has_feature_access(self.member_a, self.organization, "analytics"))
 
-    def test_analytics_endpoint_403s_for_the_restricted_member_only(self):
+    def test_feature_gated_endpoint_403s_for_the_restricted_member_only(self):
+        """
+        Uses AI Tasks config, not Analytics - company Analytics/Reports
+        are Owner-only by product decision now (user_can_view_org_analytics,
+        see analytics_views.py's docstring), independent of per-member
+        disabled_features, so a plain Member 403s there regardless of
+        this override and can't tell the two mechanisms apart. AI Tasks
+        has no such Owner-only gate, so it's the one already-member-
+        accessible, feature-gated endpoint that actually isolates what
+        this test means to check: one member's override doesn't leak
+        onto another's.
+        """
         from .services.org_member_feature_service import set_member_disabled_features
 
-        set_member_disabled_features(self.organization, self.owner_membership, self.membership_a, ["analytics"])
+        set_member_disabled_features(self.organization, self.owner_membership, self.membership_a, ["ai_tasks"])
 
         self.client.login(username="member_feature_a", password="pw12345")
-        restricted_response = self.client.get("/api/analytics/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+        restricted_response = self.client.get("/api/ai-tasks/config/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
         self.assertEqual(restricted_response.status_code, 403)
 
         self.client.login(username="member_feature_b", password="pw12345")
-        unrestricted_response = self.client.get("/api/analytics/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+        unrestricted_response = self.client.get("/api/ai-tasks/config/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
         self.assertEqual(unrestricted_response.status_code, 200)
+
+    def test_stale_disabled_features_never_restrict_an_owner(self):
+        """
+        Regression: a real company ("Riven") had its Owner's own
+        OrganizationMembership.disabled_features populated with
+        ["analytics", "reports"] (leftover from before they were
+        promoted from Member to Owner via update_member_role(), which
+        didn't clear it) and has_feature_access() enforced it, silently
+        locking the Owner out of Analytics/Reports despite the org's
+        Plan including both. set_member_disabled_features() already
+        refuses to ever WRITE this for an Owner - this covers the read
+        side matching that same "an Owner is never restricted"
+        contract regardless of how a non-empty list ended up on their
+        row.
+        """
+        from .services.org_member_feature_service import has_feature_access
+
+        self.owner_membership.disabled_features = ["analytics", "reports"]
+        self.owner_membership.save(update_fields=["disabled_features"])
+
+        self.assertTrue(has_feature_access(self.owner, self.organization, "analytics"))
+        self.assertTrue(has_feature_access(self.owner, self.organization, "reports"))
+
+    def test_promoting_a_member_to_owner_clears_their_disabled_features(self):
+        from .services.org_member_feature_service import set_member_disabled_features
+        from .services.org_membership_service import update_member_role
+
+        set_member_disabled_features(self.organization, self.owner_membership, self.membership_a, ["analytics", "reports"])
+        self.assertEqual(self.membership_a.disabled_features, ["analytics", "reports"])
+
+        update_member_role(self.organization, self.owner_membership, self.membership_a, self.org_perm.OWNER)
+        self.membership_a.refresh_from_db()
+        self.assertEqual(self.membership_a.disabled_features, [])
+
+
+class MemberGrantedAnalyticsReportsAccessTests(TestCase):
+    """
+    Regression: a real company Owner ("Riven") reported being unable to
+    grant a Member access to Analytics/Reports even though the org's
+    Plan includes both - user_can_view_org_analytics() categorically
+    blocked every non-Owner, so the per-member Feature Access toggle
+    for "analytics"/"reports" (shown in the UI, backed by
+    has_feature_access()) was a no-op for those two specific features.
+    Covers: a Member has access to both by default (same as every
+    other FEATURE_CODES entry - disabled_features starts empty), the
+    Owner can still individually restrict a Member, and a Member let in
+    sees only their own activity, never the whole company's.
+    """
+
+    def setUp(self):
+        from .services.organization_service import create_organization
+        from .services.org_permission_service import MEMBER
+
+        self.org_type = OrganizationType.objects.create(slug="member_analytics_org_type", name="Company")
+        self.owner = User.objects.create_user(username="member_analytics_owner", password="pw12345")
+        self.organization = create_organization(name="Member Analytics Co", org_type=self.org_type, created_by=self.owner)
+
+        self.member_a = User.objects.create_user(username="member_analytics_a", password="pw12345")
+        self.member_b = User.objects.create_user(username="member_analytics_b", password="pw12345")
+        self.membership_a = OrganizationMembership.objects.create(organization=self.organization, user=self.member_a, role=MEMBER)
+        OrganizationMembership.objects.create(organization=self.organization, user=self.member_b, role=MEMBER)
+        self.owner_membership = OrganizationMembership.objects.get(organization=self.organization, user=self.owner)
+
+        role = Role.objects.create(slug="member_analytics_default_user", name="User")
+        for codename in ("pages.analytics", "pages.reports"):
+            permission, _ = Permission.objects.get_or_create(codename=codename, defaults={"name": codename})
+            role.permissions.add(permission)
+        for user in (self.owner, self.member_a, self.member_b):
+            UserRole.objects.create(user=user, role=role)
+
+        Document.objects.create(
+            user=self.member_a, organization=self.organization, title="Member A's Doc.pdf",
+            file="documents/member-a-test.pdf", file_type="pdf", file_size=1024, file_hash="member-a-hash",
+        )
+        Document.objects.create(
+            user=self.member_b, organization=self.organization, title="Member B's Doc.pdf",
+            file="documents/member-b-test.pdf", file_type="pdf", file_size=2048, file_hash="member-b-hash",
+        )
+
+    def test_member_has_analytics_and_reports_access_by_default(self):
+        self.client.login(username="member_analytics_a", password="pw12345")
+        analytics_response = self.client.get("/api/analytics/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+        self.assertEqual(analytics_response.status_code, 200)
+        reports_response = self.client.get("/api/reports/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+        self.assertEqual(reports_response.status_code, 200)
+
+    def test_owner_can_still_restrict_a_specific_members_analytics_and_reports(self):
+        from .services.org_member_feature_service import set_member_disabled_features
+
+        set_member_disabled_features(self.organization, self.owner_membership, self.membership_a, ["analytics", "reports"])
+
+        self.client.login(username="member_analytics_a", password="pw12345")
+        self.assertEqual(self.client.get("/api/analytics/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug).status_code, 403)
+        self.assertEqual(self.client.get("/api/reports/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug).status_code, 403)
+
+        # member_b was never restricted - unaffected.
+        self.client.login(username="member_analytics_b", password="pw12345")
+        self.assertEqual(self.client.get("/api/analytics/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug).status_code, 200)
+
+    def test_member_reports_are_scoped_to_their_own_documents_only(self):
+        self.client.login(username="member_analytics_a", password="pw12345")
+        response = self.client.get("/api/reports/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+        self.assertEqual(response.status_code, 200)
+        # Sees only their own upload, never member_b's - never the
+        # whole-company total the Owner would see (2).
+        self.assertEqual(response.json()["document_count"], 1)
+
+    def test_owner_reports_still_see_the_whole_companys_documents(self):
+        self.client.login(username="member_analytics_owner", password="pw12345")
+        response = self.client.get("/api/reports/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["document_count"], 2)
+
+
+class OwnerOrgLibraryAccessTests(TestCase):
+    """
+    can_manage_org_library() (RAG.services.document_access_service) -
+    "documents.manage_org_library" is NOT in seed_rbac.py's
+    USER_DEFAULT_PERMISSIONS, so ordinarily only an Admin-granted
+    custom role holds it. This covers the fix letting an organization's
+    own Owner curate their company's Organization Library without that
+    separately-granted platform permission - the same org-management
+    rank they already hold everywhere else (members, billing,
+    settings) - while a plain Member (no special role) still cannot.
+    """
+
+    def setUp(self):
+        from .services.organization_service import create_organization
+        from .services.org_permission_service import MEMBER, OWNER
+
+        self.org_type = OrganizationType.objects.create(slug="org_library_org_type", name="Company")
+        self.owner = User.objects.create_user(username="org_library_owner", password="pw12345")
+        self.organization = create_organization(name="Org Library Co", org_type=self.org_type, created_by=self.owner)
+
+        self.member = User.objects.create_user(username="org_library_member", password="pw12345")
+        OrganizationMembership.objects.create(organization=self.organization, user=self.member, role=MEMBER)
+
+        # USER_DEFAULT_PERMISSIONS-equivalent - "pages.documents" only,
+        # deliberately NOT "documents.manage_org_library" - so this
+        # exercises the Owner-rank bypass, not a granted permission.
+        role = Role.objects.create(slug="org_library_default_user", name="User")
+        permission, _ = Permission.objects.get_or_create(codename="pages.documents", defaults={"name": "pages.documents"})
+        role.permissions.add(permission)
+        UserRole.objects.create(user=self.owner, role=role)
+        UserRole.objects.create(user=self.member, role=role)
+
+        self.document = Document.objects.create(
+            user=self.member, organization=self.organization, title="Team Handbook.pdf",
+            file="documents/org-library-test.pdf", file_type="pdf", file_size=1024, file_hash="org-library-test-hash",
+        )
+
+    def test_owner_can_toggle_a_document_into_the_org_library_without_the_platform_permission(self):
+        self.client.login(username="org_library_owner", password="pw12345")
+        response = self.client.post(
+            f"/api/documents/org-library/{self.document.id}/toggle/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.document.refresh_from_db()
+        self.assertTrue(self.document.is_org_library)
+
+        # Toggling again removes it - same endpoint, same Owner.
+        response = self.client.post(
+            f"/api/documents/org-library/{self.document.id}/toggle/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.document.refresh_from_db()
+        self.assertFalse(self.document.is_org_library)
+
+    def test_plain_member_cannot_toggle_the_org_library(self):
+        self.client.login(username="org_library_member", password="pw12345")
+        response = self.client.post(
+            f"/api/documents/org-library/{self.document.id}/toggle/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug,
+        )
+        self.assertEqual(response.status_code, 403)
+        self.document.refresh_from_db()
+        self.assertFalse(self.document.is_org_library)
+
+    def test_org_library_view_reports_can_manage_correctly_for_owner_and_member(self):
+        self.client.login(username="org_library_owner", password="pw12345")
+        owner_response = self.client.get("/api/documents/org-library/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+        self.assertEqual(owner_response.status_code, 200)
+        self.assertTrue(owner_response.json()["can_manage"])
+
+        self.client.login(username="org_library_member", password="pw12345")
+        member_response = self.client.get("/api/documents/org-library/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+        self.assertEqual(member_response.status_code, 200)
+        self.assertFalse(member_response.json()["can_manage"])
 
 
 class PlanChangeRequestTests(TestCase):
@@ -4431,3 +4710,332 @@ class AIRequestTraceOrganizationTests(TestCase):
         self.client.login(username="trace_personal_user", password="pw12345")
         self.assertEqual(self.client.get("/api/analytics/").status_code, 200)
         self.assertEqual(self.client.get("/api/reports/").status_code, 200)
+
+
+class AdminQueriesListPrivacyTests(TestCase):
+    """
+    Admin > Queries (/api/admin/queries/, and its CSV export) is
+    deliberately metadata-only for EVERY viewer, full stop - not a
+    "queries.view_content" toggle. Originally this was a regression
+    test for a real bug (the list endpoint's serializer leaked raw
+    `question` text to any "queries.view_all_logs" holder regardless
+    of "queries.view_content", while the React table only ever
+    *displayed* "Protected" for them - a cosmetic mask, not real
+    enforcement); the product decision since then went further and
+    removed the content-viewing feature entirely (no detail endpoint,
+    no "with content" CSV variant, no content-text search) rather than
+    leaving it as a permission a role could still be granted - see
+    RAG.api.admin_queries_views' module docstring. So this now checks
+    that NO combination of permissions ever surfaces question/answer
+    text through this endpoint, not just that a content-less viewer is
+    blocked.
+    """
+
+    def setUp(self):
+        self.view_all_logs_permission, _ = Permission.objects.get_or_create(
+            codename="queries.view_all_logs", defaults={"name": "View Query Logs"},
+        )
+        # Still exists in RBAC (Django's own /django-admin/ QueryLog
+        # page uses it) - granting it here proves it no longer does
+        # anything for THIS surface.
+        self.content_permission, _ = Permission.objects.get_or_create(
+            codename="queries.view_content", defaults={"name": "View Query Content"},
+        )
+
+        self.role = Role.objects.create(slug="queries_all_permissions", name="Every Queries Permission")
+        self.role.permissions.add(self.view_all_logs_permission, self.content_permission)
+
+        self.viewer = User.objects.create_user(username="queries_viewer", password="pw12345")
+        UserRole.objects.create(user=self.viewer, role=self.role)
+
+        self.log_owner = User.objects.create_user(username="queries_log_owner", password="pw12345")
+        self.secret_question = "What is our unreleased product launch date?"
+        QueryLog.objects.create(user=self.log_owner, question=self.secret_question, answer="Some answer.")
+
+    def test_list_never_includes_question_text_even_with_view_content_permission(self):
+        self.client.login(username="queries_viewer", password="pw12345")
+        response = self.client.get("/api/admin/queries/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data["results"]), 1)
+        self.assertNotIn("question", data["results"][0])
+        self.assertNotIn("can_view_content", data)
+        # Belt and suspenders: the secret text must not appear ANYWHERE
+        # in the raw response body, not just be absent from the one
+        # field we happen to check by key.
+        self.assertNotIn(self.secret_question, response.content.decode())
+
+    def test_content_text_search_param_is_inert(self):
+        """`?q=<text>` used to search question/answer text for a "queries.view_content" holder - now a no-op for everyone, so it must never be used to infer/leak content either (e.g. via a 200 vs empty-results side channel matching a guessed word)."""
+        self.client.login(username="queries_viewer", password="pw12345")
+        response = self.client.get("/api/admin/queries/", {"q": "unreleased"})
+
+        self.assertEqual(response.status_code, 200)
+        # The filter never applies, so the log is still returned
+        # unfiltered by content - not excluded, and not exposing its text.
+        self.assertEqual(len(response.json()["results"]), 1)
+        self.assertNotIn(self.secret_question, response.content.decode())
+
+    def test_csv_export_never_includes_content_columns(self):
+        self.client.login(username="queries_viewer", password="pw12345")
+        response = self.client.get("/api/admin/queries/export.csv")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertNotIn(self.secret_question, body)
+        self.assertNotIn("Question", body.splitlines()[0])
+
+    def test_detail_endpoint_is_gone(self):
+        log = QueryLog.objects.get(user=self.log_owner)
+        self.client.login(username="queries_viewer", password="pw12345")
+        response = self.client.get(f"/api/admin/queries/{log.id}/detail/")
+        self.assertEqual(response.status_code, 404)
+
+
+class DashboardCrossMemberQueryPrivacyTests(TestCase):
+    """
+    Regression test for a real bug: a Company Owner's own Dashboard
+    (/api/dashboard/) builds its "recent questions" activity feed from
+    stats_service._workspace_scope()'s WHOLE-organization QueryLog rows
+    (correct for aggregate counts), but was then serializing every
+    row's raw `question` text into the response regardless of whose
+    row it was - leaking a plain Member's actual question to the Owner
+    with no "queries.view_content" check at all (the same content
+    boundary Admin > Queries enforces). Fixed by only ever showing the
+    real text for the viewer's own row; every other member's row still
+    shows up generically ("Asked a question") so the activity feed
+    still reflects that something happened.
+    """
+
+    def setUp(self):
+        from .services.organization_service import create_organization
+
+        self.org_type = OrganizationType.objects.create(slug="dash_privacy_co", name="Company")
+        self.owner = User.objects.create_user(username="dash_privacy_owner", password="pw12345")
+        self.organization = create_organization(name="Dash Privacy Co", org_type=self.org_type, created_by=self.owner)
+
+        self.member = User.objects.create_user(username="dash_privacy_member", password="pw12345")
+        OrganizationMembership.objects.create(
+            organization=self.organization, user=self.member, role=OrganizationMembership.Role.MEMBER,
+        )
+
+        self.secret_question = "Should we lay off the engineering team?"
+        QueryLog.objects.create(
+            user=self.member, organization=self.organization,
+            question=self.secret_question, answer="Some answer.", confidence=80,
+        )
+
+    def test_owner_dashboard_never_exposes_a_members_question_text(self):
+        self.client.login(username="dash_privacy_owner", password="pw12345")
+        response = self.client.get("/api/dashboard/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(self.secret_question, response.content.decode())
+
+        data = response.json()
+        member_entries = [q for q in data["recent_questions"] if q["question"] is None]
+        self.assertEqual(len(member_entries), 1)
+        self.assertIn("Asked a question", [e["text"] for e in data["activity_feed"]])
+
+
+class AdminCompanyWiseReportsTests(TestCase):
+    """
+    A platform Admin can pull ANY company's Reports (or their own
+    Personal Workspace's) via an explicit ?organization=<slug>|personal
+    query param on /api/reports/ and its CSV exports, without needing
+    to first switch their active workspace to it - see reports_views.
+    _resolve_report_organization()'s docstring for why (an Admin is
+    rarely a real member of the company they need to audit). A
+    non-admin - even that company's own real Owner - must never be
+    able to use this param to see anything the ordinary header-based
+    resolution wouldn't already show them; the override is only ever
+    honored for permission_service.is_admin(). The company-wide usage
+    export an Admin gets this way is metadata-only (no question/answer
+    text), matching the same content boundary Admin > Queries enforces.
+    """
+
+    def setUp(self):
+        from .models import ADMIN_ROLE_SLUG
+        from .services.organization_service import create_organization
+
+        self.org_type = OrganizationType.objects.create(slug="report_scope_co", name="Company")
+
+        admin_role, _ = Role.objects.get_or_create(slug=ADMIN_ROLE_SLUG, defaults={"name": "Admin", "is_system": True})
+        self.admin_user = User.objects.create_user(username="report_scope_admin", password="pw12345")
+        UserRole.objects.create(user=self.admin_user, role=admin_role)
+
+        reports_permission, _ = Permission.objects.get_or_create(codename="pages.reports", defaults={"name": "Reports"})
+        outsider_role = Role.objects.create(slug="report_scope_outsider_role", name="Outsider")
+        outsider_role.permissions.add(reports_permission)
+        self.outsider = User.objects.create_user(username="report_scope_outsider", password="pw12345")
+        UserRole.objects.create(user=self.outsider, role=outsider_role)
+
+        self.owner = User.objects.create_user(username="report_scope_owner", password="pw12345")
+        UserRole.objects.create(user=self.owner, role=outsider_role)
+        self.organization = create_organization(name="Report Scope Co", org_type=self.org_type, created_by=self.owner)
+
+        self.member = User.objects.create_user(username="report_scope_member", password="pw12345")
+        UserRole.objects.create(user=self.member, role=outsider_role)
+        OrganizationMembership.objects.create(organization=self.organization, user=self.member, role=OrganizationMembership.Role.MEMBER)
+
+        self.secret_question = "Are we being acquired?"
+        QueryLog.objects.create(
+            user=self.member, organization=self.organization,
+            question=self.secret_question, answer="Some answer.", confidence=70,
+        )
+
+        Document.objects.create(user=self.member, organization=self.organization, title="Board Deck.pdf", file="documents/board.pdf")
+
+    def test_admin_can_view_any_companys_report_summary_via_override(self):
+        self.client.login(username="report_scope_admin", password="pw12345")
+        response = self.client.get(f"/api/reports/?organization={self.organization.slug}")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["document_count"], 1)
+        self.assertEqual(data["question_count"], 1)
+
+    def test_admin_company_usage_export_is_metadata_only_and_whole_team(self):
+        self.client.login(username="report_scope_admin", password="pw12345")
+        response = self.client.get(f"/api/reports/usage.csv?organization={self.organization.slug}")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn("report_scope_member", body)
+        self.assertNotIn(self.secret_question, body)
+        self.assertEqual(body.splitlines()[0].strip(), "Owner,Search Method,Confidence (%),Response Time (ms),Asked At")
+
+    def test_admin_documents_export_covers_the_whole_company(self):
+        self.client.login(username="report_scope_admin", password="pw12345")
+        response = self.client.get(f"/api/reports/documents.csv?organization={self.organization.slug}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Board Deck.pdf", response.content.decode())
+
+    def test_admin_can_still_view_own_personal_workspace_via_override(self):
+        Document.objects.create(user=self.admin_user, title="My Own Doc.pdf", file="documents/mine.pdf")
+
+        self.client.login(username="report_scope_admin", password="pw12345")
+        response = self.client.get("/api/reports/documents.csv?organization=personal")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("My Own Doc.pdf", response.content.decode())
+
+    def test_non_admin_cannot_use_the_override_to_view_a_company_they_do_not_belong_to(self):
+        self.client.login(username="report_scope_outsider", password="pw12345")
+        response = self.client.get(f"/api/reports/?organization={self.organization.slug}")
+
+        # Override ignored (outsider isn't Admin) - falls back to the
+        # header-based resolution, which (no header, outsider has no
+        # membership) resolves to their own Personal Workspace, never
+        # the named company's data.
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["document_count"], 0)
+
+    def test_the_companys_own_owner_gets_no_special_treatment_from_the_override_either(self):
+        """
+        The override is admin-only, not membership-based - Owner isn't
+        is_admin(), so ?organization=<their own company> is ignored and
+        falls back to the ordinary header-based resolution. Headerless,
+        that resolves to the Owner's own company anyway (a COMPANY
+        account_type - see resolve_request_organization()'s docstring -
+        defaults to its first/only organization, not Personal
+        Workspace) - and the Owner can view it, same as if they'd sent
+        the header explicitly (see user_can_view_org_analytics(): an
+        Owner sees their own company's Reports, the same org-management
+        surface rank they already hold everywhere else).
+        """
+        self.client.login(username="report_scope_owner", password="pw12345")
+        response = self.client.get(f"/api/reports/?organization={self.organization.slug}")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["document_count"], 1)
+        self.assertEqual(data["question_count"], 1)
+
+    def test_owner_usage_export_is_whole_team_and_metadata_only(self):
+        """Once inside their own company, an Owner's Usage Report is the whole team's usage (not just their own rows) and never includes question/answer text - matching Documents/AI Task Runs' existing whole-team behavior and Admin > Queries' content boundary."""
+        self.client.login(username="report_scope_owner", password="pw12345")
+        response = self.client.get(f"/api/reports/usage.csv?organization={self.organization.slug}")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode()
+        self.assertIn("report_scope_member", body)
+        self.assertNotIn(self.secret_question, body)
+        self.assertEqual(body.splitlines()[0].strip(), "Owner,Search Method,Confidence (%),Response Time (ms),Asked At")
+
+    def test_a_member_explicitly_restricted_by_their_owner_cannot_view_the_companys_reports(self):
+        """
+        Reports for a Member's own company is no longer Owner-only by
+        default (see MemberGrantedAnalyticsReportsAccessTests - a
+        Member has Analytics/Reports access the same as every other
+        FEATURE_CODES entry unless their Owner restricts it), but the
+        Owner's own explicit restriction (set_member_disabled_features)
+        still applies. Uses the X-Organization-Slug header (not
+        ?organization=, which only ever does anything for is_admin())
+        to actually put the company in scope for this request - the
+        member's account_type is still "personal" here (this test
+        creates the OrganizationMembership row directly, bypassing the
+        real registration flow that would force account_type=COMPANY),
+        so a headerless request would resolve to their empty Personal
+        Workspace instead and 200 there for an unrelated reason,
+        without ever exercising the check this test exists to cover.
+        """
+        from .services.org_member_feature_service import set_member_disabled_features
+
+        owner_membership = OrganizationMembership.objects.get(organization=self.organization, user=self.owner)
+        member_membership = OrganizationMembership.objects.get(organization=self.organization, user=self.member)
+        set_member_disabled_features(self.organization, owner_membership, member_membership, ["reports"])
+
+        self.client.login(username="report_scope_member", password="pw12345")
+        response = self.client.get("/api/reports/", HTTP_X_ORGANIZATION_SLUG=self.organization.slug)
+
+        self.assertEqual(response.status_code, 403)
+
+
+class BackfillFreePlanMigrationTests(TestCase):
+    """
+    RAG.migrations.0055_backfill_free_plan_for_organizations - every
+    active organization with no Subscription row at all gets the
+    built-in Free plan; an organization that already has a (possibly
+    different, deliberately assigned) plan is left completely alone.
+    """
+
+    def test_backfill_assigns_free_plan_only_to_organizations_missing_one(self):
+        from importlib import import_module
+
+        from .models import Subscription
+        from .services.billing_service import FREE_PLAN_SLUG, create_plan, get_or_create_free_plan
+        from .services.organization_service import create_organization
+
+        backfill_module = import_module("RAG.migrations.0055_backfill_free_plan_for_organizations")
+
+        org_type = OrganizationType.objects.create(slug="backfill_test_co", name="Company")
+        creator = User.objects.create_user(username="backfill_test_creator", password="pw")
+
+        # Simulates an organization created BEFORE the auto-assignment
+        # fix existed: create it, then delete the Subscription
+        # create_organization() itself just assigned, so it's back to
+        # the old "no row = unlimited" state this migration targets.
+        without_plan = create_organization(name="Backfill No Plan Co", org_type=org_type, created_by=creator)
+        Subscription.objects.filter(organization=without_plan).delete()
+
+        other_creator = User.objects.create_user(username="backfill_test_creator_2", password="pw")
+        with_plan = create_organization(name="Backfill Has Plan Co", org_type=org_type, created_by=other_creator)
+        custom_plan = create_plan(name="Backfill Custom Plan", included_credits=500)
+        from .services.billing_service import assign_plan
+        assign_plan(with_plan, custom_plan, other_creator)
+
+        backfill_module.backfill_free_plan(apps=None, schema_editor=None)
+
+        without_plan_subscription = Subscription.objects.get(organization=without_plan)
+        self.assertEqual(without_plan_subscription.plan.slug, FREE_PLAN_SLUG)
+
+        with_plan_subscription = Subscription.objects.get(organization=with_plan)
+        self.assertEqual(with_plan_subscription.plan_id, custom_plan.id)
+
+        # Idempotent - running it again changes nothing further.
+        backfill_module.backfill_free_plan(apps=None, schema_editor=None)
+        self.assertEqual(Subscription.objects.get(organization=without_plan).plan.slug, FREE_PLAN_SLUG)
+        self.assertEqual(get_or_create_free_plan().subscriptions.filter(organization=without_plan).count(), 1)

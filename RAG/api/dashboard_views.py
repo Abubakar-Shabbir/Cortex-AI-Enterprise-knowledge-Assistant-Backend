@@ -70,11 +70,28 @@ def dashboard_view(request):
     # recent_questions already fetched above instead of re-querying,
     # since user_dashboard.html's Activity Feed card renders that same
     # global context var.
+    #
+    # PRIVACY: when `organization` is set and this viewer is the Owner
+    # (scope_to_own=False above), _workspace_scope() deliberately
+    # returns the WHOLE organization's QueryLog rows for aggregate
+    # stats purposes - but that means `activity["recent_questions"]`
+    # can contain OTHER members' rows too. Question text is content,
+    # not metadata (same boundary RAG.services.queries_service /
+    # admin_queries_views.py enforce for Admin > Queries -
+    # "queries.view_content", never granted merely by being an
+    # Owner/Admin) - so only ever show the real text for a row that
+    # belongs to the viewer themselves; every other member's row still
+    # shows up (an Owner can see THAT someone asked something) with a
+    # generic label instead of what they actually asked.
     events = [
         {"icon": "file-arrow-up", "text": f'"{doc.title}" uploaded', "at": doc.uploaded_at}
         for doc in activity["recent_documents"]
     ] + [
-        {"icon": "chat-circle", "text": f'Asked: "{log.question[:60]}"', "at": log.created_at}
+        {
+            "icon": "chat-circle",
+            "text": f'Asked: "{log.question[:60]}"' if log.user_id == user.id else "Asked a question",
+            "at": log.created_at,
+        }
         for log in activity["recent_questions"]
     ]
     events.sort(key=lambda e: e["at"], reverse=True)
@@ -127,7 +144,7 @@ def dashboard_view(request):
         "recent_questions": [
             {
                 "id": log.id,
-                "question": log.question,
+                "question": log.question if log.user_id == user.id else None,
                 "confidence": log.confidence,
                 "created_at": log.created_at.isoformat(),
             }
@@ -182,11 +199,21 @@ def admin_overview_view(request):
     recent_documents_table = get_recent_documents_table(user, organization=organization)
     role, can_view_admin_area, user_permissions = get_user_access_snapshot(user)
 
+    # PRIVACY: see dashboard_view's identical comment above -
+    # activity["recent_questions"] can span every member of whichever
+    # organization is currently resolved, and question text is content
+    # that requires "queries.view_content" (Admin > Queries' own
+    # boundary), never granted just by reaching the admin area. Only
+    # ever show the real text for the viewer's own row.
     events = [
         {"icon": "file-arrow-up", "text": f'"{doc.title}" uploaded', "at": doc.uploaded_at}
         for doc in activity["recent_documents"]
     ] + [
-        {"icon": "chat-circle", "text": f'Asked: "{log.question[:60]}"', "at": log.created_at}
+        {
+            "icon": "chat-circle",
+            "text": f'Asked: "{log.question[:60]}"' if log.user_id == user.id else "Asked a question",
+            "at": log.created_at,
+        }
         for log in activity["recent_questions"]
     ]
     events.sort(key=lambda e: e["at"], reverse=True)

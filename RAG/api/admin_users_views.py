@@ -7,10 +7,11 @@ function the classic view already calls.
 """
 
 from django.contrib.auth.models import User
+from django.db.models import Prefetch
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from ..models import ADMIN_ROLE_SLUG, Role, UserRole
+from ..models import ADMIN_ROLE_SLUG, Organization, OrganizationMembership, Role, UserRole
 from ..services import notification_service
 from ..services.activity_log_service import log_activity
 from ..services.permission_service import (
@@ -26,6 +27,11 @@ from .profile_views import _serialize_profile
 
 def _serialize_user(u):
     role = getattr(getattr(u, "role_assignment", None), "role", None)
+    # `active_memberships` is populated by admin_users_view's Prefetch
+    # below (status=ACTIVE only, so a removed/suspended membership
+    # never shows a stale company here) - a plain list, not a queryset,
+    # so this never re-queries per user (the N+1 this exists to avoid).
+    memberships = getattr(u, "active_memberships", [])
     return {
         "id": u.id,
         "username": u.username,
@@ -39,19 +45,39 @@ def _serialize_user(u):
         "role_assigned_by": u.role_assignment.assigned_by.username if getattr(u, "role_assignment", None) and u.role_assignment.assigned_by_id else None,
         "is_active": u.is_active,
         "date_joined": u.date_joined,
+        # Every ACTIVE organization this user belongs to - almost
+        # always 0 (Personal) or 1 (a company-registered member), but
+        # never assumed to be exactly one: OrganizationMembership has
+        # no such constraint (an Owner can create/belong to more than
+        # one company - see its model docstring), so the frontend
+        # treats this as a list, not a single "company" field.
+        "organizations": [{"slug": m.organization.slug, "name": m.organization.name, "role": m.role} for m in memberships],
+        "account_type": getattr(getattr(u, "profile", None), "account_type", None),
     }
 
 
 @api_view(["GET"])
 @permission_classes([HasPagePermission("users.view_all")])
 def admin_users_view(request):
-    users_list = User.objects.select_related("role_assignment__role", "profile").order_by("-date_joined")
+    active_memberships = OrganizationMembership.objects.filter(
+        status=OrganizationMembership.Status.ACTIVE,
+    ).select_related("organization").order_by("organization__name")
+
+    users_list = User.objects.select_related("role_assignment__role", "profile").prefetch_related(
+        Prefetch("organization_memberships", queryset=active_memberships, to_attr="active_memberships"),
+    ).order_by("-date_joined")
 
     admin_role = Role.objects.filter(slug=ADMIN_ROLE_SLUG).first()
     assignable_roles = get_assignable_roles(request.user)
+    organizations = Organization.objects.filter(status=Organization.Status.ACTIVE).order_by("name")
 
     return Response({
         "users": [_serialize_user(u) for u in users_list],
+        # Powers the "Company" filter dropdown - every active company on
+        # the platform, not just ones with a user matching the current
+        # filter, so switching companies in the filter doesn't also
+        # narrow the dropdown's own options.
+        "organizations": [{"slug": o.slug, "name": o.name} for o in organizations],
         "assignable_roles": [{"id": r.id, "slug": r.slug, "name": r.name, "description": r.description} for r in assignable_roles],
         "assignable_role_ids": [r.id for r in assignable_roles],
         "admin_role_id": admin_role.id if admin_role else None,

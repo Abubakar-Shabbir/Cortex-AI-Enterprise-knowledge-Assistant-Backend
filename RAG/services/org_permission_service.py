@@ -138,16 +138,20 @@ def get_user_org_role(user, organization):
     Real membership role if `user` actually belongs to `organization`.
     Otherwise, a platform-wide "organizations.manage" holder (Admin via
     its bypass, or the dynamic Super Admin role) is treated as an OWNER
-    of every organization - the same trust `platform_organization_action_view`
-    already extends for suspend/delete, now applied uniformly to every
-    org-scoped view/permission check that goes through this function
-    (organization.view, members.view, billing.view,
-    audit_logs.view, ...). This is what lets clicking into a company
-    from Admin > Companies actually open its pages instead of 403ing -
-    Admin/Super Admin were never members of any company they didn't
-    personally create. Never a real OrganizationMembership row - purely
-    a computed answer, so it can't be mistaken for one anywhere that
-    queries the table directly.
+    of every organization *for rank-comparison purposes only* - e.g.
+    dashboard_views.py's scope_to_own, which decides whether an
+    oversight viewer sees org-wide vs. own-only aggregate numbers. It
+    does NOT by itself grant the org-management codename surface
+    (members/settings/billing/audit-logs) - user_has_org_permission()/
+    get_org_permission_codenames() deliberately do NOT derive their
+    answer from this function's OWNER fiction; they re-check real
+    membership themselves and, absent one, grant only
+    BYPASS_ONLY_CODENAMES (privacy: platform oversight can see a
+    company's stats and suspend/delete it, but should not be able to
+    read its members/settings/billing/audit log just by clicking in
+    from Admin > Companies). Never a real OrganizationMembership row -
+    purely a computed answer, so it can't be mistaken for one anywhere
+    that queries the table directly.
     """
 
     membership = get_org_membership(user, organization)
@@ -161,22 +165,52 @@ def get_user_org_role(user, organization):
     return None
 
 
+# Codenames a platform-wide oversight bypass (Admin/Super Admin via the
+# "organizations.manage" platform permission, never a real
+# OrganizationMembership row - see get_user_org_role()'s docstring) may
+# exercise on a company it doesn't belong to. Deliberately just the
+# read-only stats snapshot ("Admin > Companies" click-through) - NOT
+# the member-management/settings/billing/audit-log surface a real
+# Owner gets, even though get_user_org_role() still answers OWNER for
+# rank-comparison purposes elsewhere (e.g. dashboard_views.py's
+# scope_to_own, which decides whether an oversight viewer sees
+# org-wide vs. own-only numbers - that's a read-only aggregate too, so
+# it's fine for it to keep trusting the OWNER-shaped rank). Suspending/
+# deleting an organization is a SEPARATE platform-level action
+# (platform_organization_action_view, gated directly on
+# HasPagePermission("organizations.manage")) that never goes through
+# this org-scoped codename table at all, so it's unaffected by this
+# restriction - platform oversight can still view a company's stats
+# and suspend/delete it, just never reach into its members, settings,
+# billing, or audit log the way that company's own Owner can.
+BYPASS_ONLY_CODENAMES = frozenset({"organization.view"})
+
+
 def user_has_org_permission(user, organization, codename):
-    role = get_user_org_role(user, organization)
-    if not role:
-        return False
     min_role = ORG_PERMISSION_MIN_ROLE.get(codename)
     if min_role is None:
         logger.warning("Unknown organization permission codename requested: %s", codename)
         return False
-    return ROLE_RANK[role] >= ROLE_RANK[min_role]
+
+    membership = get_org_membership(user, organization)
+    if membership:
+        return ROLE_RANK[membership.role] >= ROLE_RANK[min_role]
+
+    from .permission_service import user_has_permission
+    return codename in BYPASS_ONLY_CODENAMES and user_has_permission(user, "organizations.manage")
 
 
 def get_org_permission_codenames(user, organization):
-    """Every org-permission codename `user` holds in `organization`, sorted - the org-scoped counterpart to permission_service.get_user_permission_codenames(), same JSON-serializable-list shape for frontend/template consumption."""
+    """Every org-permission codename `user` holds in `organization`, sorted - the org-scoped counterpart to permission_service.get_user_permission_codenames(), same JSON-serializable-list shape for frontend/template consumption. A platform oversight bypass (no real membership) gets only BYPASS_ONLY_CODENAMES, never the full role-derived set a real Owner/Member gets."""
 
-    role = get_user_org_role(user, organization)
-    return ORG_ROLE_PERMISSIONS.get(role, [])
+    membership = get_org_membership(user, organization)
+    if membership:
+        return ORG_ROLE_PERMISSIONS.get(membership.role, [])
+
+    from .permission_service import user_has_permission
+    if user_has_permission(user, "organizations.manage"):
+        return sorted(BYPASS_ONLY_CODENAMES)
+    return []
 
 
 def get_user_organizations(user):
@@ -375,3 +409,85 @@ def is_last_org_owner(user, organization):
     return OrganizationMembership.objects.filter(
         organization=organization, role=OWNER, status=OrganizationMembership.Status.ACTIVE
     ).count() <= 1
+
+
+def user_can_view_org_analytics(user, organization, feature_code=None):
+    """
+    Shared by Analytics and Reports: True for Personal Workspace
+    (organization=None - there it's just this user's own usage, same
+    as every other page), or whenever get_user_org_role() answers
+    OWNER for `organization` - which already covers both a real Owner
+    (the same org-management rank that grants members/billing/settings
+    everywhere else now extends to Analytics/Reports too - there was
+    no real reason for those two pages to be the one place an Owner
+    doesn't hold their own company's complete surface) AND a platform
+    Admin's oversight bypass (get_user_org_role() treats
+    "organizations.manage" as OWNER-equivalent for exactly this kind of
+    rank check - see its own docstring).
+
+    A plain Member holds none of the org-management surface, so they
+    never get the Owner's whole-team view here - but the org's own
+    Owner can still individually grant a Member Analytics/Reports via
+    the ordinary per-member feature toggle
+    (org_member_feature_service.has_feature_access(), itself bounded by
+    the company's Plan), same as every other FEATURE_CODES entry. Pass
+    `feature_code` ("analytics" or "reports") to honor that grant; the
+    caller (analytics_views.py/reports_views.py) is then responsible
+    for scoping what a Member let in this way actually sees down to
+    their own activity only (scope_to_own) - this function only
+    answers "may they view the page at all," never "how much of the
+    company's data should they see." Omitting `feature_code` keeps the
+    strict Owner-only answer, for any future caller that shouldn't
+    honor the per-member grant.
+    """
+
+    if organization is None:
+        return True
+    if get_user_org_role(user, organization) == OWNER:
+        return True
+    if feature_code is None:
+        return False
+
+    from .org_member_feature_service import has_feature_access
+    return has_feature_access(user, organization, feature_code)
+
+
+def resolve_admin_scoped_organization(request):
+    """
+    Analytics/Reports-style organization resolution: a platform Admin
+    may override the usual X-Organization-Slug header via an explicit
+    ?organization=<slug> (or "personal") query param, to view/audit
+    ANY company's Analytics/Reports - "overall" (Personal/platform)
+    numbers via ?organization=personal, or one specific company's own
+    numbers via its slug - without first switching their active
+    workspace to it, which they usually can't do at all (an Admin is
+    rarely a real member of the company they need to look at). Every
+    other viewer (that company's own Owner, browsing their own active
+    workspace) is completely unaffected by this - the override is only
+    ever honored for permission_service.is_admin(), and falls straight
+    through to the ordinary header-based resolve_request_organization()
+    otherwise. Returns (organization, is_admin_override) - callers use
+    the second value to tell "an Admin is deliberately auditing
+    someone else's company" apart from the ordinary case, both of
+    which can resolve organization=None.
+
+    request.GET (not request.query_params) so this works identically
+    from both a DRF view and a plain-Django one (@api_view vs
+    @permission_required, e.g. reports_views.py's CSV export views) -
+    DRF's Request forwards unknown attributes to the wrapped
+    HttpRequest, so .GET exists either way, unlike .query_params.
+    """
+
+    from .permission_service import is_admin
+
+    org_param = request.GET.get("organization")
+    if org_param and is_admin(request.user):
+        if org_param == "personal":
+            return None, True
+        organization = Organization.objects.filter(slug=org_param, status=Organization.Status.ACTIVE).first()
+        if organization is None:
+            raise Http404("Organization not found.")
+        return organization, True
+
+    organization, _ = resolve_request_organization(request)
+    return organization, False

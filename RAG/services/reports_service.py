@@ -26,6 +26,14 @@ USAGE_REPORT_HEADER = [
     "Question", "Answer", "Search Method", "Confidence (%)", "Response Time (ms)", "Asked At",
 ]
 
+# Used instead of USAGE_REPORT_HEADER when a platform Admin exports a
+# company's WHOLE usage report (whole_workspace=True below) - see
+# get_usage_report_rows()'s docstring for why content is never
+# included in that cross-member case.
+USAGE_REPORT_HEADER_WORKSPACE = [
+    "Owner", "Search Method", "Confidence (%)", "Response Time (ms)", "Asked At",
+]
+
 COMPARISON_REPORT_HEADER = [
     "Metric", "Current Period", "Previous Period", "Change (%)",
 ]
@@ -35,7 +43,7 @@ AI_TASK_RESULTS_HEADER = [
 ]
 
 
-def get_documents_report_rows(user, organization=None):
+def get_documents_report_rows(user, organization=None, scope_to_own=False):
     """
     One row per document in the active workspace, most recently
     uploaded first. `organization=None` (Personal Workspace) scopes to
@@ -43,10 +51,16 @@ def get_documents_report_rows(user, organization=None):
     document in that tenant - same "tenant-shared, not per-uploader"
     rule documents_views.documents_list_view already applies for an
     active organization workspace.
+
+    `scope_to_own=True` further narrows the Organization branch down to
+    just `user`'s own documents - for a Member granted Reports access
+    via their own Plan-bounded feature toggle rather than the Owner
+    rank, who should see only their own activity, never the rest of
+    the company's.
     """
 
     documents = (
-        Document.objects.filter(organization=organization)
+        Document.objects.filter(organization=organization, **({"user": user} if scope_to_own else {}))
         if organization is not None
         else Document.objects.filter(user=user, organization__isnull=True)
     ).order_by("-uploaded_at")
@@ -63,14 +77,44 @@ def get_documents_report_rows(user, organization=None):
     ]
 
 
-def get_usage_report_rows(user, organization=None):
+def get_usage_report_rows(user, organization=None, whole_workspace=False):
     """
-    One row per question `user` has asked in the active workspace,
-    most recent first. QueryLog is inherently personal ("questions I
-    asked" - see knowledge_service.get_citation_explorer()'s docstring
-    for the same rule), so this always filters by `user` regardless of
-    `organization`.
+    One row per question asked in the active workspace, most recent
+    first. Personal Workspace (organization=None, whole_workspace has
+    no effect there) always filters to `user`'s own rows - QueryLog is
+    treated as inherently personal there ("questions I asked" - see
+    knowledge_service.get_citation_explorer()'s docstring for the same
+    rule) - content (question/answer) included since it's the caller's
+    own.
+
+    `whole_workspace=True` (reports_views.py passes this whenever
+    `organization is not None` - i.e. every viewer inside a company,
+    Owner or a platform Admin auditing it via the admin-only company
+    override) scopes to every member's rows in `organization` instead
+    of just `user`'s - matching Documents/AI Task Runs' existing
+    whole-team behavior for a company workspace, and (for the admin-
+    override case specifically) avoiding an Admin picking "Company X"
+    from just getting their own almost-always-empty rows, since an
+    Admin is rarely a real member. Content is NEVER included in this
+    cross-member case, only metadata (owner/method/confidence/response
+    time/timestamp), the same "your own content is fine, someone
+    else's requires explicit content-viewing - which this app no
+    longer offers at all" boundary admin_queries_views.py enforces for
+    Admin > Queries.
     """
+
+    if whole_workspace and organization is not None:
+        logs = QueryLog.objects.filter(organization=organization).select_related("user").order_by("-created_at")
+        return [
+            [
+                log.user.username,
+                log.search_method,
+                log.confidence,
+                log.response_time_ms,
+                log.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            ]
+            for log in logs
+        ]
 
     logs = QueryLog.objects.filter(user=user, organization=organization).order_by("-created_at")
 
@@ -173,7 +217,7 @@ def get_ai_task_result_rows(run):
     return rows
 
 
-def get_ai_task_runs_report_rows(user, organization=None):
+def get_ai_task_runs_report_rows(user, organization=None, scope_to_own=False):
     """
     One row per AITaskRun in the active workspace, most recent first -
     the AI Tasks counterpart to the Usage Report, but at the run level
@@ -181,10 +225,14 @@ def get_ai_task_runs_report_rows(user, organization=None):
     ai_task_export already covers for a single run. Same tenant-shared
     scoping as ai_tasks_views.ai_task_history_view for an active
     organization workspace.
+
+    `scope_to_own` mirrors get_documents_report_rows()'s param - a
+    Member granted Reports access via their own Plan-bounded feature
+    toggle sees only their own runs, never the rest of the company's.
     """
 
     runs = (
-        AITaskRun.objects.filter(organization=organization)
+        AITaskRun.objects.filter(organization=organization, **({"user": user} if scope_to_own else {}))
         if organization is not None
         else AITaskRun.objects.filter(user=user, organization__isnull=True)
     ).order_by("-created_at")

@@ -5,20 +5,24 @@ platform "billing.manage_plans"/"billing.view_all" permissions, never
 anything org-scoped) - the structural guarantee behind "an Owner can
 never set a limit above what their assigned Plan grants": there is no
 Owner-reachable code path in this file that writes to Plan at all.
-Direct plan ASSIGNMENT (assign_plan_view) is also Super-Admin-only and
-instant - the separate, Owner-initiated REQUEST path (organizations_
-views.organization_plan_request_view) needs admin approval via
-plan_requests_view/plan_request_action_view below before it ever
-touches a Subscription. organization_billing_view is the one read-only
-exception, for an org's own Owner. See personal_billing_views.py for
-the Personal-Workspace counterpart of everything here.
+There is deliberately no direct/instant plan-assignment endpoint here -
+a Subscription is only ever created two ways: automatically, with the
+built-in Free plan, at organization creation (organization_service.
+create_organization(), via billing_service.get_or_create_free_plan())
+or via the Owner-initiated REQUEST path (organizations_views.
+organization_plan_request_view) after admin approval through
+plan_requests_view/plan_request_action_view below - never a manual
+Super-Admin override that skips that queue. organization_billing_view
+is the one read-only exception, for an org's own Owner. See
+personal_billing_views.py for the Personal-Workspace counterpart of
+everything here.
 """
 
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from ..models import FEATURE_CODES, FEATURE_LABELS, Organization, Plan, PlanChangeRequest
+from ..models import FEATURE_CODES, FEATURE_LABELS, Plan, PlanChangeRequest
 from ..services import billing_service
 from ..services.billing_service import BillingServiceError
 from .permissions import HasOrgPermission, HasPagePermission
@@ -90,7 +94,7 @@ def plans_view(request):
     return Response(_serialize_plan(plan), status=201)
 
 
-@api_view(["GET", "PATCH"])
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([HasPagePermission("billing.manage_plans")])
 def plan_detail_view(request, plan_id):
     plan = get_object_or_404(Plan, id=plan_id)
@@ -98,42 +102,19 @@ def plan_detail_view(request, plan_id):
     if request.method == "GET":
         return Response(_serialize_plan(plan))
 
+    if request.method == "DELETE":
+        try:
+            billing_service.delete_plan(plan, actor=request.user, request=request)
+        except BillingServiceError as e:
+            return Response({"error": str(e)}, status=400)
+        return Response(status=204)
+
     fields = {k: request.data[k] for k in _PLAN_FIELDS if k in request.data}
     try:
         billing_service.update_plan(plan, actor=request.user, request=request, **fields)
     except BillingServiceError as e:
         return Response({"error": str(e)}, status=400)
     return Response(_serialize_plan(plan))
-
-
-@api_view(["GET"])
-@permission_classes([HasPagePermission("billing.view_all")])
-def platform_organizations_billing_view(request):
-    organizations = Organization.objects.select_related("subscription__plan").order_by("name")
-    return Response({
-        "organizations": [
-            {
-                "slug": org.slug,
-                "name": org.name,
-                "usage": billing_service.get_organization_usage(org),
-            }
-            for org in organizations
-        ],
-    })
-
-
-@api_view(["POST", "DELETE"])
-@permission_classes([HasPagePermission("billing.manage_plans")])
-def assign_plan_view(request, org_slug):
-    organization = get_object_or_404(Organization, slug=org_slug)
-
-    if request.method == "DELETE":
-        billing_service.unassign_plan(organization, request.user, request=request)
-        return Response({"ok": True})
-
-    plan = get_object_or_404(Plan, id=request.data.get("plan_id"))
-    billing_service.assign_plan(organization, plan, request.user, request=request)
-    return Response(billing_service.get_organization_usage(organization))
 
 
 @api_view(["GET"])

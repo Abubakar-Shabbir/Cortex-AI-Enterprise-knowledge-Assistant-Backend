@@ -227,26 +227,36 @@ def get_dashboard_insights(user, organization=None):
     }
 
 
-def get_analytics_data(user, days=14, knowledge_overview=None, organization=None):
+def get_analytics_data(user, days=14, knowledge_overview=None, organization=None, scope_to_own=False):
     """
     Aggregates built entirely from real Document and QueryLog rows -
     no synthetic data - scoped to the active workspace (see
     _workspace_scope()).
+
+    `scope_to_own` mirrors get_dashboard_stats()'s param - a Member
+    granted Analytics access via their own Plan-bounded feature toggle
+    (org_member_feature_service.has_feature_access(), not the org
+    Owner rank) sees only their own activity here, never the rest of
+    the company's - the same Owner-vs-Member split dashboard_view
+    already applies.
 
     `knowledge_overview`, when provided, is used as-is instead of
     calling get_knowledge_overview(user) again - lets a caller that
     already needs the full overview dict for its own purposes (e.g.
     admin_dashboard_view, which also renders it directly) compute it
     once and share it here instead of rebuilding the same topic
-    dataset twice per page load.
+    dataset twice per page load. Topics are always accessible-document-
+    scoped per user regardless of `scope_to_own` (get_knowledge_overview()
+    already only ever counts documents `user` can see), so it needs no
+    separate handling here.
     """
 
     today = timezone.localdate()
     start_date = today - timedelta(days=days - 1)
 
-    logs_qs = _workspace_scope(QueryLog, user, organization)
-    documents_qs = _workspace_scope(Document, user, organization)
-    ai_tasks_qs = _workspace_scope(AITaskRun, user, organization)
+    logs_qs = _workspace_scope(QueryLog, user, organization, scope_to_own)
+    documents_qs = _workspace_scope(Document, user, organization, scope_to_own)
+    ai_tasks_qs = _workspace_scope(AITaskRun, user, organization, scope_to_own)
 
     questions_by_day = Counter()
     confidence_by_day = defaultdict(list)
@@ -381,7 +391,7 @@ def get_analytics_data(user, days=14, knowledge_overview=None, organization=None
     }
 
 
-def get_comparison_report_data(user, days=14, organization=None):
+def get_comparison_report_data(user, days=14, organization=None, scope_to_own=False):
     """
     Period-over-period comparison (the last `days` days vs. the
     `days` immediately before that) across the headline usage metrics
@@ -390,6 +400,11 @@ def get_comparison_report_data(user, days=14, organization=None):
     rows (see _workspace_scope()), reusing the same _period_change()
     helper get_kpi_trends() already uses for the Dashboard's trend
     badges, just over a configurable window instead of a fixed 7 days.
+
+    `scope_to_own` mirrors get_dashboard_stats()'s param - a Member
+    granted Reports access via their own Plan-bounded feature toggle
+    sees only their own activity's comparison, never the rest of the
+    company's.
     """
 
     today = timezone.localdate()
@@ -397,9 +412,9 @@ def get_comparison_report_data(user, days=14, organization=None):
     previous_start = current_start - timedelta(days=days)
     previous_end = current_start - timedelta(days=1)
 
-    documents_qs = _workspace_scope(Document, user, organization)
-    logs_qs = _workspace_scope(QueryLog, user, organization)
-    ai_tasks_qs = _workspace_scope(AITaskRun, user, organization)
+    documents_qs = _workspace_scope(Document, user, organization, scope_to_own)
+    logs_qs = _workspace_scope(QueryLog, user, organization, scope_to_own)
+    ai_tasks_qs = _workspace_scope(AITaskRun, user, organization, scope_to_own)
 
     current_documents = documents_qs.filter(uploaded_at__date__gte=current_start)
     previous_documents = documents_qs.filter(uploaded_at__date__range=(previous_start, previous_end))

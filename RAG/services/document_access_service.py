@@ -42,6 +42,30 @@ from ..models import Document
 from .permission_service import get_user_role
 
 
+def can_manage_org_library(user, organization):
+    """
+    True for either a "documents.manage_org_library" platform-permission
+    holder (the pre-existing gate - not part of USER_DEFAULT_PERMISSIONS,
+    see seed_rbac.py, so ordinarily only an Admin-granted custom role)
+    OR that organization's own Owner. Publishing a document company-
+    wide (is_org_library) is exactly the kind of org-management action
+    an Owner already holds everywhere else (members, billing, settings)
+    - there was no real reason an Owner needed a SEPARATE, manually-
+    granted platform permission just to curate their own company's
+    library, on top of every other org-management capability their
+    rank already grants for free. Personal Workspace (organization is
+    None) has no "Owner" concept, so only the platform permission
+    applies there, exactly as before this existed.
+    """
+
+    from .org_permission_service import OWNER, get_user_org_role
+    from .permission_service import user_has_permission
+
+    if user_has_permission(user, "documents.manage_org_library"):
+        return True
+    return organization is not None and get_user_org_role(user, organization) == OWNER
+
+
 def get_accessible_document_ids(user, organization=None):
     """
     Every Document id `user` may view, in the given workspace: owned

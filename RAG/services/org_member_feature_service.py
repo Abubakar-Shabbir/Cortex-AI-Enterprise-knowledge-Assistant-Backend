@@ -30,6 +30,16 @@ def has_feature_access(user, organization, feature_code):
     gets False, even if the org's Plan includes the feature - matching
     get_org_membership()'s existing "no active membership = no access"
     contract.
+
+    An Owner is never restricted by their own `disabled_features`, even
+    if that list is non-empty (e.g. left over from before they were
+    promoted to Owner) - matching set_member_disabled_features()'s
+    guard against ever targeting an Owner, and get_member_feature_access()'s
+    "An Owner is never restricted" contract. Without this, a stale
+    disabled_features row would silently lock an Owner out of their own
+    company's paid-plan features with no way to self-recover, since the
+    only way to clear it is via set_member_disabled_features(), which
+    itself refuses to target an Owner.
     """
     from .permission_service import user_has_permission
     if user_has_permission(user, "organizations.manage"):
@@ -44,6 +54,9 @@ def has_feature_access(user, organization, feature_code):
     membership = get_org_membership(user, organization)
     if membership is None:
         return False
+
+    if membership.role == OrganizationMembership.Role.OWNER:
+        return True
 
     return feature_code not in (membership.disabled_features or [])
 

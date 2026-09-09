@@ -16,7 +16,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from .. import views as classic_views
-from ..models import AIRequestTrace, AITaskRun, ErrorGroup
+from ..models import AIRequestTrace, AITaskRun, ErrorGroup, Organization
 from ..services import error_intelligence_service, observability_service
 from ..services.permission_service import has_any_system_logs_permission, user_has_permission
 from .permissions import HasPagePermission
@@ -36,6 +36,7 @@ def _serialize_trace(t):
         "trace_id": t.trace_id,
         "source_display": t.get_source_display(),
         "user": t.user.username if t.user else None,
+        "organization": {"slug": t.organization.slug, "name": t.organization.name} if t.organization_id else None,
         "status": t.status,
         "status_display": t.get_status_display(),
         "provider": t.provider,
@@ -162,10 +163,19 @@ def admin_system_logs_view(request):
         "can_view_traces": can_view_traces,
         "can_view_activity": can_view_activity,
         "can_view_activity_location": can_view_activity_location,
+        # Every active company on the platform - backs the Activity
+        # tab's "Company" filter (RAG.views._build_activity_events'
+        # current-membership scoping). The AI Logs tab uses its own,
+        # narrower list instead (filter_options.organizations below,
+        # only companies that actually have a trace).
+        "organization_options": [
+            {"slug": o.slug, "name": o.name}
+            for o in Organization.objects.filter(status=Organization.Status.ACTIVE).order_by("name")
+        ],
     }
 
     if can_view_traces:
-        filters = {k: request.query_params.get(k, "") for k in ("source", "provider", "model", "status", "error_type", "date_from", "date_to", "trace_id")}
+        filters = {k: request.query_params.get(k, "") for k in ("source", "organization", "provider", "model", "status", "error_type", "date_from", "date_to", "trace_id")}
         try:
             page = max(1, int(request.query_params.get("page", 1)))
         except ValueError:
@@ -208,6 +218,7 @@ def admin_system_logs_view(request):
             "type": request.query_params.get("act_type", ""), "actor": request.query_params.get("act_actor", ""),
             "q": request.query_params.get("act_q", ""), "location": request.query_params.get("act_location", ""),
             "date_from": request.query_params.get("act_date_from", ""), "date_to": request.query_params.get("act_date_to", ""),
+            "organization": request.query_params.get("act_organization", ""),
         }
         try:
             act_page = max(1, int(request.query_params.get("act_page", 1)))

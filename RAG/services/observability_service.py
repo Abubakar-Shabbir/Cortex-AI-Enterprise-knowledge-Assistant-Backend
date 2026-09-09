@@ -197,17 +197,23 @@ def save_trace(
 def list_traces(filters: dict = None, page_size: int = 25, page: int = 1):
     """
     Filtered/paginated AIRequestTrace queryset for the AI Logs list
-    view. `filters` (all optional): source, user_id, provider, model,
-    status, error_type, date_from, date_to, trace_id (exact or partial).
+    view. `filters` (all optional): source, user_id, organization
+    (company slug - AIRequestTrace.organization is denormalized at
+    write time from query_log/ai_task_run, so unlike the Activity tab's
+    company filter this one IS accurate to what the request actually
+    belonged to, not current membership), provider, model, status,
+    error_type, date_from, date_to, trace_id (exact or partial).
     """
 
     filters = filters or {}
-    qs = AIRequestTrace.objects.select_related("user", "query_log", "ai_task_run").all()
+    qs = AIRequestTrace.objects.select_related("user", "organization", "query_log", "ai_task_run").all()
 
     if filters.get("source"):
         qs = qs.filter(source=filters["source"])
     if filters.get("user_id"):
         qs = qs.filter(user_id=filters["user_id"])
+    if filters.get("organization"):
+        qs = qs.filter(organization__slug=filters["organization"])
     if filters.get("provider"):
         qs = qs.filter(provider=filters["provider"])
     if filters.get("model"):
@@ -383,7 +389,7 @@ def get_recent_provider_status(minutes: int = 15) -> dict:
 
 
 def get_filter_options() -> dict:
-    """Distinct provider/model/error_type values currently in AIRequestTrace, for populating the AI Logs page's filter dropdowns from real data rather than a hardcoded list."""
+    """Distinct provider/model/error_type/organization values currently in AIRequestTrace, for populating the AI Logs page's filter dropdowns from real data rather than a hardcoded list."""
 
     return {
         "providers": list(
@@ -395,4 +401,12 @@ def get_filter_options() -> dict:
         "error_types": list(
             AIRequestTrace.objects.exclude(error_type="").values_list("error_type", flat=True).distinct().order_by("error_type")
         ),
+        # Only companies that actually have at least one trace - not
+        # every company on the platform - so this dropdown never offers
+        # a filter guaranteed to return zero rows.
+        "organizations": [
+            {"slug": slug, "name": name}
+            for slug, name in AIRequestTrace.objects.exclude(organization__isnull=True)
+            .values_list("organization__slug", "organization__name").distinct().order_by("organization__name")
+        ],
     }

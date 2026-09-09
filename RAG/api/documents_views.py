@@ -27,7 +27,7 @@ from ..services import billing_service
 from ..services.activity_log_service import log_activity
 from ..services.categories_service import list_categories
 from ..services.collections_service import add_document_to_collection, list_collections
-from ..services.document_access_service import get_accessible_document_ids, get_accessible_documents
+from ..services.document_access_service import can_manage_org_library, get_accessible_document_ids, get_accessible_documents
 from ..services.document_library_service import annotate_document_status, filter_and_sort_documents
 from ..services.favorites_service import favorite_ids_for, list_favorites, toggle_favorite
 from ..services import notification_service
@@ -439,7 +439,7 @@ def org_library_view(request):
     """
 
     organization, _ = resolve_request_organization(request)
-    can_manage = user_has_permission(request.user, "documents.manage_org_library")
+    can_manage = can_manage_org_library(request.user, organization)
 
     org_documents = Document.objects.filter(is_org_library=True, organization=organization)
     total_org_documents = org_documents.count()
@@ -473,7 +473,6 @@ def org_library_view(request):
 
 
 @api_view(["POST"])
-@permission_classes([HasPagePermission("documents.manage_org_library")])
 def org_library_toggle_view(request, doc_id):
     """
     Add/remove a document from ITS OWN workspace's Organization Library
@@ -483,13 +482,18 @@ def org_library_toggle_view(request, doc_id):
     `get_object_or_404` 404s (not 403s) for a document outside it, the
     same fail-closed-without-confirming-existence shape this codebase
     uses for a forged org slug. Still "any document IN that workspace"
-    (not just one the actor personally uploaded) - the
-    "documents.manage_org_library" permission gate is the intended
-    access boundary for curating a workspace's own library, same as
-    the classic org_library_toggle view always allowed.
+    (not just one the actor personally uploaded) - can_manage_org_library()
+    (a "documents.manage_org_library" platform-permission holder, OR
+    that organization's own Owner - see its own docstring for why an
+    Owner doesn't need a separately-granted platform permission just
+    to curate their own company's library) is the intended access
+    boundary for curating a workspace's own library, same as the
+    classic org_library_toggle view always allowed.
     """
 
     organization, _ = resolve_request_organization(request)
+    if not can_manage_org_library(request.user, organization):
+        return Response({"error": "You don't have permission to manage the Organization Library."}, status=403)
     document = get_object_or_404(Document, id=doc_id, organization=organization)
 
     document.is_org_library = not document.is_org_library

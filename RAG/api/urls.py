@@ -68,7 +68,6 @@ urlpatterns = [
 
     path("admin/queries/", admin_queries_views.admin_queries_view, name="api_admin_queries"),
     path("admin/queries/export.csv", admin_queries_views.export_queries_report_view, name="api_export_queries_report"),
-    path("admin/queries/<int:log_id>/detail/", admin_queries_views.admin_query_detail_view, name="api_admin_query_detail"),
     path("admin/queries/<int:log_id>/toggle-flag/", admin_queries_views.admin_query_toggle_flag_view, name="api_admin_query_toggle_flag"),
 
     path("admin/settings/", admin_settings_views.admin_settings_view, name="api_admin_settings"),
@@ -147,8 +146,6 @@ urlpatterns = [
 
     path("admin/billing/plans/", billing_views.plans_view, name="api_billing_plans"),
     path("admin/billing/plans/<int:plan_id>/", billing_views.plan_detail_view, name="api_billing_plan_detail"),
-    path("admin/billing/organizations/", billing_views.platform_organizations_billing_view, name="api_billing_organizations"),
-    path("admin/billing/organizations/<slug:org_slug>/assign-plan/", billing_views.assign_plan_view, name="api_billing_assign_plan"),
     path("admin/billing/plan-requests/", billing_views.plan_requests_view, name="api_billing_plan_requests"),
     path("admin/billing/plan-requests/<int:request_id>/action/", billing_views.plan_request_action_view, name="api_billing_plan_request_action"),
 ]

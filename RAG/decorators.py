@@ -18,7 +18,6 @@ from .services.permission_service import (
     has_admin_area_access,
     has_any_settings_permission,
     has_any_system_logs_permission,
-    is_admin,
     user_has_permission,
     user_has_role,
 )
@@ -88,26 +87,6 @@ def org_feature_required(feature_code):
             return view_func(request, *args, **kwargs)
         return wrapped_view
     return decorator
-
-
-def org_analytics_admin_required(view_func):
-    """
-    Plain-Django counterpart to RAG.api.permissions.RestrictsOrgAnalyticsToAdmin,
-    for reports_views.py's export_*_view functions (CSV exports use
-    @permission_required instead of DRF permission_classes). Inside an
-    Organization, only a platform Admin may proceed - not even that
-    organization's Owner; Personal Workspace (organization is None)
-    always passes.
-    """
-
-    @wraps(view_func)
-    @login_required
-    def wrapped_view(request, *args, **kwargs):
-        organization, _ = resolve_request_organization(request)
-        if organization is not None and not is_admin(request.user):
-            raise PermissionDenied("Only a platform Admin can view Analytics/Reports for an organization.")
-        return view_func(request, *args, **kwargs)
-    return wrapped_view
 
 
 def admin_required(view_func):

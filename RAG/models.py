@@ -1695,8 +1695,10 @@ class Organization(models.Model):
 
     ai_credits_balance = models.PositiveIntegerField(
         null=True, blank=True, default=None,
-        help_text="A spendable AI usage balance, independent of (and in addition to) the Plan's "
-                   "monthly max_queries_per_month/max_ai_task_runs_per_month caps - see "
+        help_text="A spendable AI usage balance - the organization's SOLE spend-metering "
+                   "currency (see billing_service.py's module docstring); the Plan's own "
+                   "max_queries_per_month/max_ai_task_runs_per_month are informational quota "
+                   "display only, not a second enforcement gate. See "
                    "billing_service.check_ai_credits()/deduct_ai_credits(). NULL (every "
                    "organization's default, until an Owner ever tops up) means unlimited, the same "
                    "'absence means today's behavior, nothing breaks until someone opts in' "
@@ -1740,6 +1742,15 @@ class OrganizationMembership(models.Model):
     middle tier is ever needed again). See
     org_permission_service.ORG_ROLE_PERMISSIONS for what each tier
     actually grants.
+
+    Besides role/status, this is also where an Owner's two per-member
+    controls live: `disabled_features` (which Plan-included feature
+    pages this member can reach) and `max_queries_per_month`/
+    `max_ai_task_runs_per_month` (how much of the organization's usage
+    THIS member may consume per billing period, a count-based ceiling
+    kept deliberately separate from the org-wide AI credit balance -
+    see those fields' own help_text and billing_service.py's module
+    docstring).
     """
 
     class Role(models.TextChoices):
@@ -1778,6 +1789,28 @@ class OrganizationMembership(models.Model):
                    "member-specific restriction, the same absence-means-allowed convention "
                    "Plan.included_features and Subscription's own absence both use. Never "
                    "applies to an Owner (see set_member_disabled_features()'s guard).",
+    )
+
+    max_queries_per_month = models.PositiveIntegerField(
+        null=True, blank=True, default=None,
+        help_text="Owner-set sub-quota on how many questions THIS member may ask per billing "
+                   "period - a SEPARATE, count-based ceiling from the organization's own AI "
+                   "credit balance (Organization.ai_credits_balance, the org-wide spend-metering "
+                   "currency), enforced independently of it. Always bounded by (never exceeding) "
+                   "the org's active Plan's own max_queries_per_month when one is set - see "
+                   "org_member_limits_service.set_member_usage_limits()'s validation. NULL "
+                   "(default) means no member-specific cap, the same absence-means-unrestricted "
+                   "convention disabled_features above already uses. Counted against QueryLog "
+                   "rows scoped to this user (billing_service.get_member_usage()) and enforced "
+                   "as a hard block by billing_service.check_member_query_limit(). Never applies "
+                   "to an Owner (see set_member_usage_limits()'s guard).",
+    )
+
+    max_ai_task_runs_per_month = models.PositiveIntegerField(
+        null=True, blank=True, default=None,
+        help_text="Same per-member sub-quota as max_queries_per_month above, counted against "
+                   "AITaskRun rows instead and enforced by "
+                   "billing_service.check_member_ai_task_limit().",
     )
 
     class Meta:
@@ -1919,11 +1952,26 @@ class OrganizationAuditLog(models.Model):
 # ============================================================
 #
 # Internal bookkeeping only - no real payment processor, no card
-# charging. A Super Admin manually assigns a Plan to an Organization;
-# billing_service.py enforces the assigned Plan's limits with a hard
-# block (402) once exceeded. No Subscription row for an organization
-# means unlimited - the same "absence means today's behavior" rollout
-# convention the Departments models above use.
+# charging. A Super Admin manually assigns a Plan to an Organization.
+# Two independent enforcement axes, deliberately not merged into one:
+#   - AI credits (Organization.ai_credits_balance) are the organization's
+#     SOLE spend-metering currency - every question/AI Task run costs
+#     credits, and running out is the one hard org-wide block
+#     (billing_service.check_ai_credits()). Plan.max_queries_per_month/
+#     max_ai_task_runs_per_month are informational quota display only
+#     now (see Plan's own field help_text below) - they no longer raise
+#     on their own, which is what used to let an org get blocked by a
+#     count cap while sitting on an untouched credit balance, or vice
+#     versa, two gates metering the same action.
+#   - Per-member quantity caps (OrganizationMembership.
+#     max_queries_per_month/max_ai_task_runs_per_month) are a SEPARATE,
+#     Owner-set ceiling on one specific member's usage, count-based (not
+#     credits), and enforced independently of the org-wide credit
+#     balance - see billing_service.check_member_query_limit()/
+#     check_member_ai_task_limit().
+# No Subscription row for an organization means unlimited - the same
+# "absence means today's behavior" rollout convention the Departments
+# models above use.
 
 # Feature-page codes gated by Plan.included_features / OrganizationMembership
 # .disabled_features (org_member_feature_service.py). Deliberately a separate
@@ -1978,8 +2026,19 @@ class Plan(models.Model):
     currency = models.CharField(max_length=3, default="USD")
     billing_interval = models.CharField(max_length=10, choices=BillingInterval.choices, default=BillingInterval.MONTHLY)
 
-    max_queries_per_month = models.PositiveIntegerField(null=True, blank=True)
-    max_ai_task_runs_per_month = models.PositiveIntegerField(null=True, blank=True)
+    max_queries_per_month = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Informational monthly quota, shown alongside usage for reference - NOT an "
+                   "independent enforcement gate. AI credits (included_credits below) are the "
+                   "organization's sole spend-metering currency (see billing_service.py's module "
+                   "docstring for why these two axes were merged into one); an Owner can still "
+                   "narrow an individual member below whatever this number implies via "
+                   "OrganizationMembership.max_queries_per_month, which IS a real hard block.",
+    )
+    max_ai_task_runs_per_month = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="Same informational-only role as max_queries_per_month above, for AI Task runs.",
+    )
     max_storage_bytes = models.BigIntegerField(null=True, blank=True)
     max_seats = models.PositiveIntegerField(null=True, blank=True)
 
@@ -2082,11 +2141,14 @@ class PlanChangeRequest(models.Model):
     approve_plan_request()/reject_plan_request()). Approval is what
     actually creates/updates the real Subscription row (via the
     existing assign_plan()) - this model never grants anything on its
-    own, it's purely the request/audit trail in front of that. A
-    Platform Admin's existing DIRECT assignment path (billing_views.
-    assign_plan_view) is unaffected by this model at all - that's a
-    separate, admin-initiated instant path that skips the request
-    queue entirely, same as before this model existed.
+    own, it's purely the request/audit trail in front of that. This is
+    the ONLY way an existing organization's plan ever changes after
+    creation - there is deliberately no admin-initiated instant
+    override that skips this queue (see billing_views.py's module
+    docstring). A brand-new organization's very first Subscription is
+    the one exception, created automatically with the built-in Free
+    plan at organization creation (organization_service.
+    create_organization()), never through this request model at all.
     """
 
     class Status(models.TextChoices):

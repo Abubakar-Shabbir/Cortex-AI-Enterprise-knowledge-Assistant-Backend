@@ -28,7 +28,7 @@ from .decorators import admin_area_required, permission_required, settings_acces
 from .models import (
     ADMIN_ROLE_SLUG, ActivityLog, AIRequestTrace, AITaskRun, AITaskRunDocument, Category, Collection,
     Document, DocumentAccessLog, DocumentChunk, DocumentShare, DocumentVersion, Entity, ErrorGroup, Favorite,
-    Permission, QueryLog, Role, Tag, UserProfile, UserRole,
+    OrganizationMembership, Permission, QueryLog, Role, Tag, UserProfile, UserRole,
 )
 from .services.activity_log_service import log_activity
 from .services import device_intelligence_service
@@ -1906,7 +1906,29 @@ def _build_activity_events(filters: dict, include_location: bool = True):
     than trusting the template to just not render the column - the same
     "scrub the data, don't just hide it" rule queries.view_content
     already applies to question/answer text.
+
+    filters["organization"] (a company slug) scopes to actors who are
+    CURRENTLY an active member of that company - ActivityLog itself has
+    no organization FK (unlike AIRequestTrace/Document, it predates the
+    multi-tenancy retrofit and touches far too many log_activity() call
+    sites to backfill safely here), so this is membership-at-view-time,
+    not membership-at-event-time. A member who has since left (or
+    joined) the company will show/hide accordingly even for an old
+    event - acceptable for "what is this company's team up to", wrong
+    if read as "who was in this company when this happened". Every
+    returned event also carries an `organizations` list (same
+    current-membership lookup, batched once below) purely for display -
+    never used to decide what content an event contains, only which
+    company badge to show next to it.
     """
+
+    member_usernames = None
+    if filters.get("organization"):
+        member_usernames = set(
+            OrganizationMembership.objects.filter(
+                organization__slug=filters["organization"], status=OrganizationMembership.Status.ACTIVE,
+            ).values_list("user__username", flat=True)
+        )
 
     events = []
 
@@ -1914,6 +1936,8 @@ def _build_activity_events(filters: dict, include_location: bool = True):
         doc_qs = Document.objects.select_related("user").order_by("-uploaded_at")
         if filters.get("actor"):
             doc_qs = doc_qs.filter(user__username__icontains=filters["actor"])
+        if member_usernames is not None:
+            doc_qs = doc_qs.filter(user__username__in=member_usernames)
         if filters.get("q"):
             doc_qs = doc_qs.filter(title__icontains=filters["q"])
         if filters.get("date_from"):
@@ -1943,6 +1967,8 @@ def _build_activity_events(filters: dict, include_location: bool = True):
             log_qs = log_qs.filter(action=filters["type"])
         if filters.get("actor"):
             log_qs = log_qs.filter(actor__username__icontains=filters["actor"])
+        if member_usernames is not None:
+            log_qs = log_qs.filter(actor__username__in=member_usernames)
         if filters.get("q"):
             log_qs = log_qs.filter(description__icontains=filters["q"])
         if filters.get("date_from"):
@@ -1972,6 +1998,20 @@ def _build_activity_events(filters: dict, include_location: bool = True):
             })
 
     events.sort(key=lambda event: event["at"], reverse=True)
+
+    # One batched query for every distinct actor across both sources
+    # (not one query per event) to attach each event's CURRENT company
+    # badge - see the "organization" filter note above for why this is
+    # membership-at-view-time, not membership-at-event-time.
+    actor_usernames = {e["actor"] for e in events if e["actor"] != "system"}
+    memberships_by_username = {}
+    for m in OrganizationMembership.objects.filter(
+        user__username__in=actor_usernames, status=OrganizationMembership.Status.ACTIVE,
+    ).select_related("organization", "user"):
+        memberships_by_username.setdefault(m.user.username, []).append({"slug": m.organization.slug, "name": m.organization.name})
+    for event in events:
+        event["organizations"] = memberships_by_username.get(event["actor"], [])
+
     return events
 
 

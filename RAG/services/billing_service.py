@@ -3,33 +3,53 @@ Billing / Plans / Usage Limits
 
 Internal bookkeeping only - no real payment processor, no card
 charging. A Super Admin manually assigns a Plan to an Organization
-(billing_views.py); this module enforces the assigned Plan's limits
-with a hard block once exceeded, and reports current usage. An Owner
-can also REQUEST a plan change themselves (request_plan_change()),
-which stays Pending until a Platform Admin approves it
-(approve_plan_request()) - direct assignment by a Platform Admin
-(assign_plan()) is a separate, instant, admin-initiated path that
-skips the request queue entirely.
+(billing_views.py); this module enforces usage limits with a hard
+block once exceeded, and reports current usage. An Owner can also
+REQUEST a plan change themselves (request_plan_change()), which stays
+Pending until a Platform Admin approves it (approve_plan_request()) -
+direct assignment by a Platform Admin (assign_plan()) is a separate,
+instant, admin-initiated path that skips the request queue entirely.
+
+Two independent enforcement axes (deliberately not merged into one -
+see the "Billing / Plans / Usage Limits" comment block at the top of
+models.py for the full rationale):
+
+  - AI CREDITS (Organization.ai_credits_balance) are the organization's
+    SOLE spend-metering currency now. Every question asked / AI Task
+    run costs credits (check_ai_credits()/deduct_ai_credits()), and the
+    instant ANY Plan is assigned, credits become strictly governed by
+    that Plan's `included_credits` (refilled every billing period - see
+    _advance_period()). Plan.max_queries_per_month/
+    max_ai_task_runs_per_month are informational quota display only -
+    check_query_limit()/check_ai_task_limit() were removed along with
+    this redesign, since a second, independent count-based gate on the
+    exact same action (asking a question, running an AI Task) just
+    meant an org could be blocked by whichever gate was stricter while
+    the other sat unused - not a meaningful extra control, just
+    confusing double metering.
+  - PER-MEMBER quantity caps (OrganizationMembership.
+    max_queries_per_month/max_ai_task_runs_per_month) are a SEPARATE,
+    Owner-set, count-based ceiling on one specific member's usage -
+    check_member_query_limit()/check_member_ai_task_limit() below.
+    Unlike credits, these remain a real hard block independent of the
+    organization's shared credit balance: an Owner narrowing one
+    member's monthly allowance doesn't touch what the rest of the
+    organization can spend.
 
 No Subscription row for an organization means unlimited - the caller
 (get_active_subscription) never has to special-case "new organization"
-vs. "explicitly unlimited organization", and every check_*_limit below
-returns immediately (no query, no block) when that's the case. This is
-the same "absence means today's behavior, nothing breaks until someone
-opts in" rollout convention this codebase uses elsewhere for additive,
-nullable rollout fields. The instant ANY Plan is assigned, though, AI
-credits become a strictly metered resource governed by that Plan's
-`included_credits` (refilled every billing period - see
-_advance_period()) - credits are no longer an independent axis an
-Owner can leave untouched forever once a Plan is in play, unlike
-before this module supported Plan-integrated credits.
+vs. "explicitly unlimited organization", and get_organization_usage()
+returns immediately (no query) when that's the case. This is the same
+"absence means today's behavior, nothing breaks until someone opts in"
+rollout convention this codebase uses elsewhere for additive, nullable
+rollout fields.
 
 (Personal Workspace billing - `user=`-keyed Subscriptions/credits -
 was removed along with the Personal Workspace account type; the
 `_for`-suffixed dispatchers below (check_query_limit_for, ...) are
 kept only so ask_views.py/ai_tasks_views.py/documents_views.py don't
-need to call check_query_limit() etc. directly - every workspace is an
-Organization now.)
+need to call check_member_query_limit() etc. directly - every
+workspace is an Organization now.)
 
 Usage is computed by aggregating QueryLog/AITaskRun/Document/
 OrganizationMembership directly - NOT a separately-maintained counter
@@ -202,6 +222,82 @@ def _serialize_plan_snapshot(plan):
     }
 
 
+def _current_period_window(organization):
+    """
+    The (start, end) window per-member caps are counted against.
+    Reuses the org's own active Subscription period when one exists,
+    so a member's window always matches the organization's own -
+    otherwise falls back to the current calendar month, since an
+    Owner's per-member cap is that Owner's own choice, independent of
+    whether a Plan is assigned at all (unlike credits, which have
+    nothing to meter without a Plan's included_credits to draw from).
+    """
+    subscription = get_active_subscription(organization)
+    if subscription is not None:
+        return _advance_period(subscription)
+    now = timezone.now()
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    return start, _add_one_month(start)
+
+
+def get_member_usage(organization, user, membership=None):
+    """
+    Per-member usage counts for the current period window - the
+    sub-quota counterpart to get_organization_usage(). Returns None
+    when `user` has no active membership in `organization` (nothing to
+    report). Unlike get_organization_usage(), this is not cached -
+    it's only read on a member-detail/roster view and on the
+    check_member_*_limit() hard-block path below, nowhere near
+    per-request-hot enough to need it.
+    """
+    if membership is None:
+        from .org_permission_service import get_org_membership
+        membership = get_org_membership(user, organization)
+    if membership is None:
+        return None
+
+    period_start, period_end = _current_period_window(organization)
+    return {
+        "period_start": period_start,
+        "period_end": period_end,
+        "max_queries_per_month": membership.max_queries_per_month,
+        "max_ai_task_runs_per_month": membership.max_ai_task_runs_per_month,
+        "queries_used": QueryLog.objects.filter(
+            organization=organization, user=user, created_at__gte=period_start, created_at__lt=period_end,
+        ).count(),
+        "ai_task_runs_used": AITaskRun.objects.filter(
+            organization=organization, user=user, created_at__gte=period_start, created_at__lt=period_end,
+        ).count(),
+    }
+
+
+def _check_member(organization, user, used_key, limit_key, limit_type, message_noun):
+    if organization is None:
+        return
+    from .org_permission_service import get_org_membership
+    membership = get_org_membership(user, organization)
+    if membership is None:
+        return
+    limit = getattr(membership, limit_key)
+    if limit is None:
+        return
+    usage = get_member_usage(organization, user, membership=membership)
+    if usage[used_key] >= limit:
+        raise UsageLimitExceeded(
+            limit_type,
+            f"You've reached your personal monthly {message_noun} limit ({limit}) set by your "
+            f"organization's Owner. Ask an Owner to raise it.",
+        )
+
+
+def check_member_query_limit(organization, user):
+    _check_member(organization, user, "queries_used", "max_queries_per_month", "member_queries", "AI query")
+
+
+def check_member_ai_task_limit(organization, user):
+    _check_member(organization, user, "ai_task_runs_used", "max_ai_task_runs_per_month", "member_ai_task_runs", "AI Task run")
+
+
 def get_organization_usage(organization):
     subscription = get_active_subscription(organization)
     if subscription is None or not subscription.plan.is_active:
@@ -234,29 +330,6 @@ def get_organization_usage(organization):
     }
     cache.set(cache_key, usage, USAGE_CACHE_SECONDS)
     return usage
-
-
-def _check(organization, used_key, limit_key, limit_type, message_noun):
-    if organization is None:
-        return
-    usage = get_organization_usage(organization)
-    if usage["unlimited"]:
-        return
-    limit = usage["plan"][limit_key]
-    if limit is not None and usage[used_key] >= limit:
-        raise UsageLimitExceeded(
-            limit_type,
-            f"You've reached this organization's {message_noun} limit ({limit}). "
-            f"Upgrade your plan to continue.",
-        )
-
-
-def check_query_limit(organization):
-    _check(organization, "queries_used", "max_queries_per_month", "queries", "monthly AI query")
-
-
-def check_ai_task_limit(organization):
-    _check(organization, "ai_task_runs_used", "max_ai_task_runs_per_month", "ai_task_runs", "monthly AI Task run")
 
 
 def check_storage_limit(organization, additional_bytes):
@@ -468,6 +541,30 @@ def update_plan(plan, actor=None, request=None, **fields):
     return plan
 
 
+def delete_plan(plan, actor=None, request=None):
+    """
+    Hard-deletes a Plan that has never been assigned or requested.
+    Subscription.plan and PlanChangeRequest.requested_plan are both
+    on_delete=PROTECT (see their docstrings), so Django itself refuses
+    this at the DB level the instant any organization/user has ever
+    been on this Plan or requested it - deletion is only for a Plan
+    created by mistake or never adopted. A Plan already in real use
+    should be deactivated instead (update_plan(plan, is_active=False)),
+    which every existing subscriber keeps working under.
+    """
+
+    from django.db.models import ProtectedError
+
+    name = plan.name
+    try:
+        plan.delete()
+    except ProtectedError:
+        raise BillingServiceError(
+            f'"{name}" can\'t be deleted - it has active subscriptions or plan-change history. Deactivate it instead.'
+        )
+    log_activity(actor, "billing.plan_deleted", f'Plan "{name}" deleted', request=request)
+
+
 def assign_plan(organization, plan, assigned_by, request=None):
     """
     Does NOT reset current_period_start/end on a plan change (only on
@@ -499,14 +596,40 @@ def assign_plan(organization, plan, assigned_by, request=None):
     return subscription
 
 
-def unassign_plan(organization, actor, request=None):
-    """Deletes the Subscription row - reverts the org to unlimited, the same 'no row = unlimited' default a brand new organization already starts in."""
-    deleted, _ = Subscription.objects.filter(organization=organization).delete()
-    if deleted:
-        log_org_activity(
-            organization, actor, "billing.plan_unassigned", "Plan removed - organization reverted to unlimited.",
-            request=request,
-        )
+FREE_PLAN_SLUG = "free"
+
+
+def get_or_create_free_plan():
+    """
+    The built-in, zero-configuration Company plan every new organization
+    is assigned to at creation (organization_service.create_organization()) -
+    a brand-new company should start on a real, working plan rather than
+    the old "no Subscription row = unlimited" default, so usage limits
+    are meaningful from day one instead of only after a Super Admin
+    manually assigns one. Idempotent (get_or_create by slug), so it's
+    safe to call both from the seed_billing_plans management command
+    and from organization creation itself - an environment where nobody
+    ever ran the seed command still gets a working Free plan on the
+    very first company signup, not a missing-plan error. Re-running
+    never overwrites an already-existing Free plan's live settings
+    (an admin may have since edited its limits) - `defaults` only apply
+    on first creation, same convention seed_organization_types.py uses.
+    """
+    plan, _ = Plan.objects.get_or_create(
+        slug=FREE_PLAN_SLUG,
+        defaults={
+            "name": "Free",
+            "description": "Default plan for every new company - no cost, enough to get started.",
+            "plan_type": Plan.PlanType.COMPANY,
+            "price": None,
+            "included_credits": 50,
+            "max_queries_per_month": 100,
+            "max_ai_task_runs_per_month": 20,
+            "max_seats": 5,
+            "is_active": True,
+        },
+    )
+    return plan
 
 
 # ============================================================
@@ -546,12 +669,12 @@ def approve_plan_request(plan_request, actor, request=None):
 
 
 def check_query_limit_for(organization, user):
-    """Every workspace is now an Organization - kept as the one place enforcement call sites (ask_views.py, ...) go through, rather than calling check_query_limit() directly, so a future workspace type doesn't require touching every call site again. `user` is unused now but kept in the signature to avoid churning every caller."""
-    check_query_limit(organization)
+    """Every workspace is now an Organization - kept as the one place enforcement call sites (ask_views.py, ...) go through, rather than calling check_member_query_limit() directly, so a future workspace type doesn't require touching every call site again. Org-wide usage is metered by credits alone (check_ai_credits_for, called separately by every caller) - this is only the per-member sub-quota gate."""
+    check_member_query_limit(organization, user)
 
 
 def check_ai_task_limit_for(organization, user):
-    check_ai_task_limit(organization)
+    check_member_ai_task_limit(organization, user)
 
 
 def check_storage_limit_for(organization, user, additional_bytes):

@@ -11,7 +11,7 @@ from rest_framework.permissions import BasePermission
 
 from ..models import ORG_ROLE_OWNER, OrganizationMembership
 from ..services.org_member_feature_service import has_feature_access
-from ..services.permission_service import has_admin_area_access, is_admin, user_has_permission
+from ..services.permission_service import has_admin_area_access, user_has_permission
 from ..services.org_permission_service import resolve_organization_context, resolve_request_organization, user_has_org_permission
 
 
@@ -142,32 +142,3 @@ def HasOrgFeatureAccess(feature_code):
             return has_feature_access(request.user, organization, feature_code)
 
     return _HasOrgFeatureAccess
-
-
-class RestrictsOrgAnalyticsToAdmin(BasePermission):
-    """
-    Analytics/Reports carry one more restriction beyond the ordinary
-    HasPagePermission("pages.analytics"/"pages.reports") + HasOrgFeatureAccess
-    gates above: inside an Organization, only a platform Admin may view
-    them - not even that organization's own Owner, who otherwise holds
-    the entire org-management surface including "complete analytics"
-    (see OrganizationMembership's model docstring) everywhere else.
-    Personal Workspace (organization is None) is unaffected - a
-    Personal user with pages.analytics/pages.reports still sees their
-    own usage analytics exactly as before; this only fires once
-    resolve_request_organization(request) resolves to a real
-    Organization (the X-Organization-Slug header is set).
-
-    Usage: add alongside the existing HasPagePermission/HasOrgFeatureAccess
-    checks, never in place of them.
-    """
-
-    message = "Only a platform Admin can view Analytics/Reports for an organization."
-
-    def has_permission(self, request, view):
-        if not (request.user and request.user.is_authenticated):
-            return False
-        organization, _ = resolve_request_organization(request)
-        if organization is None:
-            return True
-        return is_admin(request.user)

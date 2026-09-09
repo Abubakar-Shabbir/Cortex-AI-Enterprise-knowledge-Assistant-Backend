@@ -26,6 +26,7 @@ from ..services.billing_service import UsageLimitExceeded
 from ..services.knowledge_service import get_knowledge_overview
 from ..services.org_invitation_service import InvitationError, accept_invitation, create_invitation, list_invitations, revoke_invitation
 from ..services.org_member_feature_service import FeatureAccessError, get_member_feature_access, set_member_disabled_features
+from ..services.org_member_limits_service import MemberLimitError, set_member_usage_limits
 from ..services.org_membership_service import MembershipError
 from ..services.org_permission_service import (
     can_actor_assign_org_role,
@@ -132,6 +133,9 @@ def _serialize_member(membership):
         "joined_at": membership.joined_at,
         "disabled_features": membership.disabled_features,
         "feature_access": get_member_feature_access(membership.organization, membership),
+        "max_queries_per_month": membership.max_queries_per_month,
+        "max_ai_task_runs_per_month": membership.max_ai_task_runs_per_month,
+        "usage": billing_service.get_member_usage(membership.organization, user, membership=membership),
     }
 
 
@@ -316,7 +320,11 @@ def organization_stats_view(request, org_slug):
         "feature_access": get_member_feature_access(request.organization, request.org_membership),
         "feature_access_summary": {
             "plan_feature_codes": billing_service.org_plan_feature_codes(request.organization),
-            "members_with_overrides": member_qs.exclude(disabled_features=[]).count(),
+            # Excludes Owner rows: disabled_features is never enforced for an
+            # Owner (has_feature_access()/get_member_feature_access()'s "an
+            # Owner is never restricted" contract), so a stale list left over
+            # from before a promotion shouldn't count as a real override here.
+            "members_with_overrides": member_qs.exclude(role=OrganizationMembership.Role.OWNER).exclude(disabled_features=[]).count(),
         },
     })
 
@@ -466,13 +474,13 @@ def organization_member_register_view(request, org_slug):
 @permission_classes([HasOrgPermission("members.update_role")])
 def organization_member_action_view(request, org_slug):
     """
-    update_role/remove/suspend/reactivate all mutate another member's
-    standing in the organization, so this whole view is gated at
-    OWNER rank (members.update_role's minimum in
-    ORG_PERMISSION_MIN_ROLE - members.remove shares that same minimum,
-    and suspend/reactivate have no codename of their own, so this is
-    the one gate covering all four - and since Member holds NO
-    org-management codename at all, Owner is the only rank that can
+    update_role/remove/suspend/reactivate/update_features/update_limits
+    all mutate another member's standing in the organization, so this
+    whole view is gated at OWNER rank (members.update_role's minimum
+    in ORG_PERMISSION_MIN_ROLE - members.remove shares that same
+    minimum, and the other four actions have no codename of their own,
+    so this is the one gate covering all six - and since Member holds
+    NO org-management codename at all, Owner is the only rank that can
     ever ask to be checked against). org_membership_service.
     can_actor_manage_org_member()'s rank-relative check still runs
     below as defense-in-depth.
@@ -497,11 +505,19 @@ def organization_member_action_view(request, org_slug):
                 request.organization, request.org_membership, target,
                 request.data.get("disabled_features", []), request=request,
             )
+        elif action == "update_limits":
+            set_member_usage_limits(
+                request.organization, request.org_membership, target,
+                request.data.get("max_queries_per_month"), request.data.get("max_ai_task_runs_per_month"),
+                request=request,
+            )
         else:
             return Response({"error": "Unknown action."}, status=400)
     except MembershipError as e:
         return Response({"error": str(e)}, status=403)
     except FeatureAccessError as e:
+        return Response({"error": str(e)}, status=400)
+    except MemberLimitError as e:
         return Response({"error": str(e)}, status=400)
 
     return Response({"ok": True})

@@ -65,7 +65,14 @@ def update_member_role(organization, actor_membership, target_membership, new_ro
 
     old_role = target_membership.role
     target_membership.role = new_role
-    target_membership.save(update_fields=["role"])
+    update_fields = ["role"]
+    if new_role == OrganizationMembership.Role.OWNER and target_membership.disabled_features:
+        # An Owner is never restricted (has_feature_access()/get_member_feature_access()'s
+        # contract) - clear now rather than leave a stale list that would silently
+        # reactivate if this Owner is ever demoted back to Member later.
+        target_membership.disabled_features = []
+        update_fields.append("disabled_features")
+    target_membership.save(update_fields=update_fields)
 
     log_org_activity(
         organization=organization,
